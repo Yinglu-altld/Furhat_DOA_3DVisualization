@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DOA WebSocket Client</title>
+    <style>
+      :root {
+        --bg: #f4f6f8;
+        --panel: #ffffff;
+        --text: #1f2933;
+        --muted: #5f6c7b;
+        --ok: #15803d;
+        --warn: #b45309;
+        --bad: #b91c1c;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(180deg, #f7f9fb 0%, #eef2f7 100%);
+        color: var(--text);
+        display: grid;
+        place-items: center;
+        padding: 16px;
+      }
+
+      .card {
+        width: min(640px, 100%);
+        background: var(--panel);
+        border: 1px solid #d7dde5;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 8px 24px rgba(31, 41, 51, 0.08);
+      }
+
+      h1 {
+        margin: 0 0 16px;
+        font-size: 1.15rem;
+      }
+
+      .row {
+        margin-bottom: 12px;
+      }
+
+      .label {
+        font-size: 0.9rem;
+        color: var(--muted);
+        margin-bottom: 4px;
+      }
+
+      .value {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      }
+
+      #status[data-state="connecting"] {
+        color: var(--warn);
+      }
+
+      #status[data-state="open"] {
+        color: var(--ok);
+      }
+
+      #status[data-state="closed"],
+      #status[data-state="error"] {
+        color: var(--bad);
+      }
+
+      pre {
+        margin: 0;
+        padding: 12px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>DOA WebSocket Receiver</h1>
+
+      <div class="row">
+        <div class="label">WebSocket</div>
+        <div id="endpoint" class="value">ws://localhost:9000</div>
+      </div>
+
+      <div class="row">
+        <div class="label">Connection Status</div>
+        <div id="status" class="value" data-state="connecting">Connecting...</div>
+      </div>
+
+      <div class="row">
+        <div class="label">Latest DOA Data</div>
+        <pre id="latest">Waiting for messages...</pre>
+      </div>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
