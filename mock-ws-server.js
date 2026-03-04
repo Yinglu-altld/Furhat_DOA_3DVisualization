@@ -22,7 +22,6 @@ function randomUnitVector() {
 function buildPayload() {
   return {
     dir: randomUnitVector(),
-    strength: +Math.random().toFixed(2),
   };
 }
 

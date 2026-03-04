@@ -4,15 +4,13 @@ import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x020617);
-
 const camera = new THREE.PerspectiveCamera(
-  60,
+  75,
   window.innerWidth / window.innerHeight,
   0.1,
   1000
 );
-camera.position.set(0.9, 0.9, 1.7);
+camera.position.z = 1;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -21,21 +19,22 @@ document.body.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.dampingFactor = 0.08;
-controls.enablePan = false;
-controls.minDistance = 1.2;
-controls.maxDistance = 2.8;
+controls.dampingFactor = 0.1;
+controls.enableZoom = false;
 
-const keyLight = new THREE.DirectionalLight(0xffffff, 4);
-keyLight.position.set(1.2, 1.8, 2);
-scene.add(keyLight);
+const useAmbientLight = false;
+if (useAmbientLight) {
+  const ambient = new THREE.AmbientLight(0xffffff, 3);
+  scene.add(ambient);
+} else {
+  const light = new THREE.DirectionalLight(0xffffff, 5);
+  light.position.set(1, 4, 2);
+  scene.add(light);
 
-const fillLight = new THREE.DirectionalLight(0xffffff, 1.5);
-fillLight.position.set(-1.4, -0.8, -1.6);
-scene.add(fillLight);
-
-const ambient = new THREE.AmbientLight(0xffffff, 0.2);
-scene.add(ambient);
+  const backLight = new THREE.DirectionalLight(0xffffff, 2);
+  backLight.position.set(-1, -4, -2);
+  scene.add(backLight);
+}
 
 const objLoader = new OBJLoader();
 const mtlLoader = new MTLLoader();
@@ -60,49 +59,101 @@ mtlLoader.load(
   (err) => console.error("Failed to load speaker.mtl", err)
 );
 
-let geometry = new THREE.IcosahedronGeometry(0.34, 3).toNonIndexed();
+const geometry = new THREE.IcosahedronGeometry(0.34, 3);
 const basePositions = geometry.attributes.position.array.slice();
 
-const orbMaterial = new THREE.MeshPhongMaterial({
-  color: 0xd43513,
-  opacity: 0.5,
+const material = new THREE.MeshPhongMaterial({
+  color: 0x5e07c3,
+  opacity: 0.2,
   transparent: true,
   side: THREE.DoubleSide,
   depthWrite: false,
 });
-const orbMesh = new THREE.Mesh(geometry, orbMaterial);
-scene.add(orbMesh);
+const icosahedron = new THREE.Mesh(geometry, material);
+scene.add(icosahedron);
 
-const edgeGeom = new THREE.EdgesGeometry(geometry, 20);
-const edgeMaterial = new THREE.LineBasicMaterial({
+const lineMaterial = new THREE.MeshPhongMaterial({
   color: 0x76f3f7,
+  wireframe: true,
+  opacity: 0.5,
   transparent: true,
-  opacity: 0.65,
-  depthWrite: false,
 });
-orbMesh.add(new THREE.LineSegments(edgeGeom, edgeMaterial));
+const edgeLines = new THREE.Mesh(geometry, lineMaterial);
+icosahedron.add(edgeLines);
+
+function clamp01(value) {
+  return THREE.MathUtils.clamp(value, 0, 1);
+}
+
+function normalizeHexColor(value, fallback) {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  const hex = trimmed.startsWith("#") ? trimmed.slice(1) : trimmed;
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return fallback;
+  return `#${hex.toLowerCase()}`;
+}
+
+function getOrbStyle() {
+  return {
+    fillColor: `#${material.color.getHexString()}`,
+    fillOpacity: Number(material.opacity.toFixed(2)),
+    wireColor: `#${lineMaterial.color.getHexString()}`,
+    wireOpacity: Number(lineMaterial.opacity.toFixed(2)),
+    wireVisible: edgeLines.visible,
+  };
+}
+
+function setOrbStyle(style = {}) {
+  const current = getOrbStyle();
+
+  if ("fillColor" in style) {
+    const fillColor = normalizeHexColor(style.fillColor, current.fillColor);
+    material.color.set(fillColor);
+  }
+
+  if ("fillOpacity" in style && Number.isFinite(style.fillOpacity)) {
+    const fillOpacity = clamp01(style.fillOpacity);
+    material.opacity = fillOpacity;
+    material.transparent = fillOpacity < 1;
+  }
+
+  if ("wireColor" in style) {
+    const wireColor = normalizeHexColor(style.wireColor, current.wireColor);
+    lineMaterial.color.set(wireColor);
+  }
+
+  if ("wireOpacity" in style && Number.isFinite(style.wireOpacity)) {
+    const wireOpacity = clamp01(style.wireOpacity);
+    lineMaterial.opacity = wireOpacity;
+    lineMaterial.transparent = wireOpacity < 1;
+  }
+
+  if ("wireVisible" in style && typeof style.wireVisible === "boolean") {
+    edgeLines.visible = style.wireVisible;
+  }
+}
 
 const v = new THREE.Vector3();
 const n = new THREE.Vector3();
-const currentDirection = new THREE.Vector3(1, 0, 0);
-let currentStrength = 0.12;
+const direction = new THREE.Vector3(1, 0, 0);
+const SPIKE_AMOUNT = 0.36;
 let hasExternalDOA = false;
 const idleClock = new THREE.Clock();
 
-function deformOrb(dir, strength) {
+function spikeTowards(dir, s) {
   const pos = geometry.attributes.position;
-  const displacement = 0.55 * strength;
 
   for (let i = 0; i < pos.count; i++) {
     const ix = i * 3;
     v.set(basePositions[ix], basePositions[ix + 1], basePositions[ix + 2]);
+
     n.copy(v).normalize();
 
-    let weight = n.dot(dir);
-    weight = Math.max(0, weight);
-    weight = Math.pow(weight, 14);
+    let w = n.dot(dir);
+    w = Math.max(0, w);
+    w = Math.pow(w, 14);
 
-    v.addScaledVector(n, weight * displacement);
+    v.addScaledVector(n, w * s);
     pos.setXYZ(i, v.x, v.y, v.z);
   }
 
@@ -112,34 +163,36 @@ function deformOrb(dir, strength) {
 
 window.orb = {
   update(data) {
-    if (!data || !data.dir) return;
+    if (!data || typeof data !== "object") return;
+    const source = data.dir && typeof data.dir === "object" ? data.dir : data;
+    const x = Number(source.x);
+    const y = Number(source.y);
+    const z = Number(source.z);
+    if (![x, y, z].every((num) => Number.isFinite(num))) return;
 
-    const x = Number(data.dir.x);
-    const y = Number(data.dir.y);
-    const z = Number(data.dir.z);
-    const strength = Number(data.strength);
-
-    if (![x, y, z, strength].every((num) => Number.isFinite(num))) return;
-
-    currentDirection.set(x, y, z);
-    if (currentDirection.lengthSq() < 1e-8) return;
-    currentDirection.normalize();
-
-    currentStrength = THREE.MathUtils.clamp(strength, 0, 1);
+    direction.set(x, y, z);
+    if (direction.lengthSq() < 1e-8) return;
+    direction.normalize();
     hasExternalDOA = true;
   },
+  setStyle(style) {
+    setOrbStyle(style);
+  },
+  getStyle() {
+    return getOrbStyle();
+  },
 };
+window.dispatchEvent(new Event("orb-ready"));
 
 function animate() {
   requestAnimationFrame(animate);
 
   if (!hasExternalDOA) {
-    const t = idleClock.getElapsedTime() * 0.6;
-    currentDirection.set(Math.cos(t), 0.25, Math.sin(t)).normalize();
-    currentStrength = 0.12;
+    const t = idleClock.getElapsedTime() * 0.8;
+    direction.set(Math.cos(t), 0.25, Math.sin(t)).normalize();
   }
 
-  deformOrb(currentDirection, currentStrength);
+  spikeTowards(direction, SPIKE_AMOUNT);
   controls.update();
   renderer.render(scene, camera);
 }
