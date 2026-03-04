@@ -30,7 +30,8 @@ let ambiLight = false;
 if (ambiLight) {
   const ambient = new THREE.AmbientLight(0xffffff, 3);
   scene.add(ambient);
-} else {
+} 
+else {
   const light = new THREE.DirectionalLight(0xffffff, 5);
   light.position.set(1, 4, 2);
   scene.add(light);
@@ -56,17 +57,15 @@ mtlLoader.load("/speaker.mtl", (materials) => {
 });
 
 // Creating the orb (icosahedron)
-let geometry = new THREE.IcosahedronGeometry(0.34, 3);
-
-geometry = geometry.toNonIndexed();
+const geometry = new THREE.IcosahedronGeometry(0.4, 3);
 
 // Store the base (rest) positions so deformation doesn't accumulate
 const posAttr = geometry.attributes.position;
 const basePositions = posAttr.array.slice(); // copy
 
 const material = new THREE.MeshPhongMaterial({
-  color: "blue",
-  opacity: 0.3,
+  color: 0x5e07c3,
+  opacity: 0.2,
   transparent: true,
   side: THREE.DoubleSide,
   depthWrite: false,
@@ -75,16 +74,13 @@ const icosahedron = new THREE.Mesh(geometry, material);
 scene.add(icosahedron);
 
 // Creating wireframe for cool effect
-const edgeGeom = new THREE.EdgesGeometry(geometry, 20);
-const lineMaterial = new THREE.LineBasicMaterial({
+const lineMaterial = new THREE.MeshPhongMaterial({
   color: 0x76f3f7,
   wireframe: true,
   opacity: 0.5,
   transparent: true,
-  depthWrite: false,
-  depthTest: true,
 });
-const edgeLines = new THREE.LineSegments(edgeGeom, lineMaterial);
+const edgeLines = new THREE.Mesh(geometry, lineMaterial);
 icosahedron.add(edgeLines);
 
 // Reuse vectors (avoid per-frame allocations)
@@ -118,42 +114,11 @@ function spikeTowards(dir, strength) {
   geometry.computeVertexNormals();
 }
 
-let str = 0.12;
+let str = 0.22;
+// const angularSpeed = 1;
 
 // Reuse direction vector too
 const direction = new THREE.Vector3();
-
-// Explotion function
-const tmpA = new THREE.Vector3();
-const tmpB = new THREE.Vector3();
-const tmpC = new THREE.Vector3();
-const faceNormal = new THREE.Vector3();
-
-let explode = 0.1;
-
-function explodeFaces( amount ) {
-  const pos = geometry.attributes.position;
-
-  for( let i = 0; i < pos.count; i+= 3 ) {
-    tmpA.fromBufferAttribute( pos, i + 0 );
-    tmpB.fromBufferAttribute( pos, i + 1 );
-    tmpC.fromBufferAttribute( pos, i + 2 );
-
-    faceNormal
-      .subVectors(tmpB, tmpA)
-      .cross( tmpC.clone().sub(tmpA) )
-      .normalize();
-
-    tmpA.addScaledVector( faceNormal, amount );
-    tmpB.addScaledVector( faceNormal, amount );
-    tmpC.addScaledVector( faceNormal, amount );
-
-    pos.setXYZ( i + 0, tmpA.x, tmpA.y, tmpA.z );
-    pos.setXYZ( i + 1, tmpB.x, tmpB.y, tmpB.z );
-    pos.setXYZ( i + 2, tmpC.x, tmpC.y, tmpC.z );
-  }
-  pos.needsUpdate = true;
-}
 
 // Helpers for json file
 let DOAData = [];
@@ -179,7 +144,11 @@ fetch("./doa_xyz_frames.jsonl")
 function animate() {
   requestAnimationFrame(animate);
 
-if ( DOAData.length > 0 ) {
+  // const t = clock.getElapsedTime();
+  // const a = t * angularSpeed;
+  // direction.set(Math.cos(a), 0.35, Math.sin(a)).normalize();
+
+  if ( DOAData.length > 0 ) {
     const t = clock.getElapsedTime();
     const index = Math.floor( t / stepTime ) % DOAData.length;
     const p = DOAData[ index ];
@@ -189,10 +158,9 @@ if ( DOAData.length > 0 ) {
     spikeTowards(direction, str * 1.8);
 
   }
-  explodeFaces( explode );
 
   controler.update();
-  renderer.render( scene, camera );
+  renderer.render(scene, camera);
 }
 
 animate();
