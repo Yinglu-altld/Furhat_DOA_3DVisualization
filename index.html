@@ -29,17 +29,24 @@
         color: var(--text);
       }
 
+      canvas {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+      }
+
       #status-panel {
         position: fixed;
         top: 14px;
         left: 14px;
-        z-index: 10;
+        z-index: 1000;
         width: min(420px, calc(100vw - 28px));
         background: var(--panel-bg);
         border: 1px solid var(--panel-border);
         border-radius: 10px;
         padding: 12px;
         backdrop-filter: blur(6px);
+        pointer-events: auto;
       }
 
       .row + .row {
@@ -80,6 +87,28 @@
         overflow: auto;
       }
 
+      .mode-switch {
+        display: flex;
+        gap: 8px;
+      }
+
+      .mode-btn {
+        flex: 1;
+        font-size: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.45);
+        background: rgba(30, 41, 59, 0.85);
+        color: var(--text);
+        border-radius: 6px;
+        padding: 6px 8px;
+        cursor: pointer;
+      }
+
+      .mode-btn[data-active="true"] {
+        border-color: rgba(34, 211, 238, 0.9);
+        box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.7);
+        background: rgba(8, 47, 73, 0.9);
+      }
+
       .controls {
         display: grid;
         gap: 8px;
@@ -87,6 +116,10 @@
         border-radius: 8px;
         background: rgba(15, 23, 42, 0.8);
         border: 1px solid rgba(148, 163, 184, 0.25);
+      }
+
+      .hidden {
+        display: none;
       }
 
       .control-row {
@@ -97,7 +130,7 @@
 
       .control-row label {
         font-size: 12px;
-        min-width: 82px;
+        min-width: 88px;
         opacity: 0.9;
       }
 
@@ -125,7 +158,7 @@
         justify-content: flex-end;
       }
 
-      #reset-style {
+      .reset-btn {
         font-size: 12px;
         border: 1px solid rgba(148, 163, 184, 0.45);
         background: rgba(30, 41, 59, 0.85);
@@ -135,7 +168,7 @@
         cursor: pointer;
       }
 
-      #reset-style:hover {
+      .reset-btn:hover {
         background: rgba(51, 65, 85, 0.9);
       }
     </style>
@@ -154,47 +187,107 @@
         <div class="label">WebSocket</div>
         <div id="endpoint" class="value">ws://localhost:9000</div>
       </div>
+
       <div class="row">
         <div class="label">Connection Status</div>
         <div id="status" class="value" data-state="connecting">Connecting...</div>
       </div>
+
       <div class="row">
         <div class="label">Latest DOA Data</div>
         <pre id="latest">Waiting for messages...</pre>
       </div>
+
       <div class="row">
-        <div class="label">Orb Style</div>
-        <div class="controls">
+        <div class="label">Orb Mode</div>
+        <div class="mode-switch">
+          <button
+            id="mode-faces"
+            class="mode-btn"
+            type="button"
+            onclick="window.switchOrbMode && window.switchOrbMode('faces')"
+          >
+            Faces
+          </button>
+          <button
+            id="mode-wireframe"
+            class="mode-btn"
+            type="button"
+            onclick="window.switchOrbMode && window.switchOrbMode('wireframe')"
+          >
+            Wireframe
+          </button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="label">Style Controls</div>
+
+        <div id="controls-faces" class="controls hidden">
           <div class="control-row">
-            <label for="fill-color">Fill Color</label>
-            <input id="fill-color" type="color" value="#5e07c3" />
+            <label for="faces-fill-color">Fill Color</label>
+            <input id="faces-fill-color" type="color" value="#0000ff" />
           </div>
+
           <div class="control-row">
-            <label for="fill-opacity">Fill Opacity</label>
-            <input id="fill-opacity" type="range" min="0" max="1" step="0.01" value="0.2" />
-            <span id="fill-opacity-value" class="mini-value">0.20</span>
+            <label for="faces-fill-opacity">Fill Opacity</label>
+            <input id="faces-fill-opacity" type="range" min="0" max="1" step="0.01" value="0.30" />
+            <span id="faces-fill-opacity-value" class="mini-value">0.30</span>
           </div>
+
           <div class="control-row">
-            <label for="wire-color">Wire Color</label>
-            <input id="wire-color" type="color" value="#76f3f7" />
+            <label for="faces-explode">Explode</label>
+            <input id="faces-explode" type="range" min="0" max="0.3" step="0.01" value="0.10" />
+            <span id="faces-explode-value" class="mini-value">0.10</span>
           </div>
-          <div class="control-row">
-            <label for="wire-opacity">Wire Opacity</label>
-            <input id="wire-opacity" type="range" min="0" max="1" step="0.01" value="0.5" />
-            <span id="wire-opacity-value" class="mini-value">0.50</span>
-          </div>
-          <div class="control-row">
-            <label for="wire-visible">Wire Visible</label>
-            <input id="wire-visible" type="checkbox" checked />
-          </div>
+
           <div class="button-row">
-            <button id="reset-style" type="button">Reset</button>
+            <button id="faces-reset-style" class="reset-btn" type="button">Reset</button>
+          </div>
+        </div>
+
+        <div id="controls-wireframe" class="controls hidden">
+          <div class="control-row">
+            <label for="wire-fill-color">Fill Color</label>
+            <input id="wire-fill-color" type="color" value="#5e07c3" />
+          </div>
+
+          <div class="control-row">
+            <label for="wire-fill-opacity">Fill Opacity</label>
+            <input id="wire-fill-opacity" type="range" min="0" max="1" step="0.01" value="0.20" />
+            <span id="wire-fill-opacity-value" class="mini-value">0.20</span>
+          </div>
+
+          <div class="control-row">
+            <label for="wire-line-color">Wire Color</label>
+            <input id="wire-line-color" type="color" value="#76f3f7" />
+          </div>
+
+          <div class="control-row">
+            <label for="wire-line-opacity">Wire Opacity</label>
+            <input id="wire-line-opacity" type="range" min="0" max="1" step="0.01" value="0.50" />
+            <span id="wire-line-opacity-value" class="mini-value">0.50</span>
+          </div>
+
+          <div class="button-row">
+            <button id="wire-reset-style" class="reset-btn" type="button">Reset</button>
           </div>
         </div>
       </div>
     </aside>
 
-    <script type="module" src="./faces.js"></script>
+    <script>
+      (function () {
+        const url = new URL(window.location.href);
+        const mode = url.searchParams.get("orbStyle") === "wireframe" ? "wireframe" : "faces";
+        window.__orbStyle = mode;
+
+        const rendererModule = document.createElement("script");
+        rendererModule.type = "module";
+        rendererModule.src = mode === "wireframe" ? "./wireframe.js" : "./faces.js";
+        document.body.appendChild(rendererModule);
+      })();
+    </script>
     <script src="./app.js"></script>
   </body>
 </html>

@@ -56,15 +56,14 @@ mtlLoader.load("/public/speaker.mtl", (materials) => {
   );
 });
 
-let geometry = new THREE.IcosahedronGeometry(0.34, 3);
-geometry = geometry.toNonIndexed();
+const geometry = new THREE.IcosahedronGeometry(0.4, 3);
 
 const posAttr = geometry.attributes.position;
 const basePositions = posAttr.array.slice();
 
 const material = new THREE.MeshPhongMaterial({
-  color: "blue",
-  opacity: 0.3,
+  color: 0x5e07c3,
+  opacity: 0.2,
   transparent: true,
   side: THREE.DoubleSide,
   depthWrite: false,
@@ -72,16 +71,13 @@ const material = new THREE.MeshPhongMaterial({
 const icosahedron = new THREE.Mesh(geometry, material);
 scene.add(icosahedron);
 
-const edgeGeom = new THREE.EdgesGeometry(geometry, 20);
-const lineMaterial = new THREE.LineBasicMaterial({
+const lineMaterial = new THREE.MeshPhongMaterial({
   color: 0x76f3f7,
   wireframe: true,
   opacity: 0.5,
   transparent: true,
-  depthWrite: false,
-  depthTest: true,
 });
-const edgeLines = new THREE.LineSegments(edgeGeom, lineMaterial);
+const edgeLines = new THREE.Mesh(geometry, lineMaterial);
 icosahedron.add(edgeLines);
 
 const v = new THREE.Vector3();
@@ -94,10 +90,8 @@ const idleDirection = new THREE.Vector3(1, 0, 0);
 const DOA_ACTIVE_TIMEOUT_MS = 1200;
 const IDLE_ROT_SPEED = 0.35;
 const IDLE_ELEVATION = 0.2;
-const IDLE_STRENGTH_BASE = 0.045;
-const IDLE_STRENGTH_PULSE = 0.03;
-const IDLE_EXPLODE_BASE = 0.06;
-const IDLE_EXPLODE_PULSE = 0.02;
+const IDLE_STRENGTH_BASE = 0.055;
+const IDLE_STRENGTH_PULSE = 0.035;
 
 function spikeTowards(dir, strength) {
   const pos = geometry.attributes.position;
@@ -121,44 +115,10 @@ function spikeTowards(dir, strength) {
   geometry.computeVertexNormals();
 }
 
-let str = 0.12;
-
-const tmpA = new THREE.Vector3();
-const tmpB = new THREE.Vector3();
-const tmpC = new THREE.Vector3();
-const faceNormal = new THREE.Vector3();
-let explode = 0.1;
-
-function explodeFaces(amount) {
-  const pos = geometry.attributes.position;
-
-  for (let i = 0; i < pos.count; i += 3) {
-    tmpA.fromBufferAttribute(pos, i + 0);
-    tmpB.fromBufferAttribute(pos, i + 1);
-    tmpC.fromBufferAttribute(pos, i + 2);
-
-    faceNormal
-      .subVectors(tmpB, tmpA)
-      .cross(tmpC.clone().sub(tmpA))
-      .normalize();
-
-    tmpA.addScaledVector(faceNormal, amount);
-    tmpB.addScaledVector(faceNormal, amount);
-    tmpC.addScaledVector(faceNormal, amount);
-
-    pos.setXYZ(i + 0, tmpA.x, tmpA.y, tmpA.z);
-    pos.setXYZ(i + 1, tmpB.x, tmpB.y, tmpB.z);
-    pos.setXYZ(i + 2, tmpC.x, tmpC.y, tmpC.z);
-  }
-  pos.needsUpdate = true;
-}
+let str = 0.22;
 
 function clamp01(value) {
   return THREE.MathUtils.clamp(value, 0, 1);
-}
-
-function clampExplode(value) {
-  return THREE.MathUtils.clamp(value, 0, 0.3);
 }
 
 function normalizeHexColor(value, fallback) {
@@ -173,7 +133,8 @@ function getOrbStyle() {
   return {
     fillColor: `#${material.color.getHexString()}`,
     fillOpacity: Number(material.opacity.toFixed(2)),
-    explodeAmount: Number(explode.toFixed(2)),
+    wireColor: `#${lineMaterial.color.getHexString()}`,
+    wireOpacity: Number(lineMaterial.opacity.toFixed(2)),
   };
 }
 
@@ -191,8 +152,15 @@ function setOrbStyle(style = {}) {
     material.transparent = fillOpacity < 1;
   }
 
-  if ("explodeAmount" in style && Number.isFinite(style.explodeAmount)) {
-    explode = clampExplode(style.explodeAmount);
+  if ("wireColor" in style) {
+    const wireColor = normalizeHexColor(style.wireColor, current.wireColor);
+    lineMaterial.color.set(wireColor);
+  }
+
+  if ("wireOpacity" in style && Number.isFinite(style.wireOpacity)) {
+    const wireOpacity = clamp01(style.wireOpacity);
+    lineMaterial.opacity = wireOpacity;
+    lineMaterial.transparent = wireOpacity < 1;
   }
 }
 
@@ -227,7 +195,6 @@ function animate() {
 
   if (hasFreshDOA) {
     spikeTowards(direction, str * 1.8);
-    explodeFaces(explode);
   } else {
     const t = idleClock.getElapsedTime();
     const a = t * IDLE_ROT_SPEED;
@@ -236,10 +203,7 @@ function animate() {
       .normalize();
 
     const idleStrength = IDLE_STRENGTH_BASE + IDLE_STRENGTH_PULSE * (0.5 + 0.5 * Math.sin(t * 0.8));
-    const idleExplode = IDLE_EXPLODE_BASE + IDLE_EXPLODE_PULSE * Math.sin(t * 0.9);
-
     spikeTowards(idleDirection, idleStrength);
-    explodeFaces(idleExplode);
   }
 
   controler.update();

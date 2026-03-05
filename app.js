@@ -1,57 +1,138 @@
 const WS_URL = "ws://192.168.1.217:8765";
+
 const statusEl = document.getElementById("status");
 const endpointEl = document.getElementById("endpoint");
 const latestEl = document.getElementById("latest");
-const fillColorEl = document.getElementById("fill-color");
-const fillOpacityEl = document.getElementById("fill-opacity");
-const fillOpacityValueEl = document.getElementById("fill-opacity-value");
-const wireColorEl = document.getElementById("wire-color");
-const wireOpacityEl = document.getElementById("wire-opacity");
-const wireOpacityValueEl = document.getElementById("wire-opacity-value");
-const wireVisibleEl = document.getElementById("wire-visible");
-const resetStyleEl = document.getElementById("reset-style");
 
-const DEFAULT_ORB_STYLE = {
-  fillColor: "#5e07c3",
-  fillOpacity: 0.2,
-  wireColor: "#76f3f7",
-  wireOpacity: 0.5,
-  wireVisible: true,
+const modeFacesEl = document.getElementById("mode-faces");
+const modeWireframeEl = document.getElementById("mode-wireframe");
+
+const facesControlsEl = document.getElementById("controls-faces");
+const wireControlsEl = document.getElementById("controls-wireframe");
+
+const facesFillColorEl = document.getElementById("faces-fill-color");
+const facesFillOpacityEl = document.getElementById("faces-fill-opacity");
+const facesFillOpacityValueEl = document.getElementById("faces-fill-opacity-value");
+const facesExplodeEl = document.getElementById("faces-explode");
+const facesExplodeValueEl = document.getElementById("faces-explode-value");
+const facesResetEl = document.getElementById("faces-reset-style");
+
+const wireFillColorEl = document.getElementById("wire-fill-color");
+const wireFillOpacityEl = document.getElementById("wire-fill-opacity");
+const wireFillOpacityValueEl = document.getElementById("wire-fill-opacity-value");
+const wireLineColorEl = document.getElementById("wire-line-color");
+const wireLineOpacityEl = document.getElementById("wire-line-opacity");
+const wireLineOpacityValueEl = document.getElementById("wire-line-opacity-value");
+const wireResetEl = document.getElementById("wire-reset-style");
+
+const DEFAULT_STYLE = {
+  faces: {
+    fillColor: "#0000ff",
+    fillOpacity: 0.3,
+    explodeAmount: 0.1,
+  },
+  wireframe: {
+    fillColor: "#5e07c3",
+    fillOpacity: 0.2,
+    wireColor: "#76f3f7",
+    wireOpacity: 0.5,
+  },
 };
 
+function getOrbMode() {
+  const fromUrl = new URLSearchParams(window.location.search).get("orbStyle");
+  if (fromUrl === "faces" || fromUrl === "wireframe") return fromUrl;
+  if (window.__orbStyle === "faces" || window.__orbStyle === "wireframe") return window.__orbStyle;
+  return "faces";
+}
+
+const ORB_MODE = getOrbMode();
 let orbMissingWarned = false;
+
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function clampExplode(value) {
+  return Math.max(0, Math.min(0.3, value));
+}
+
+function normalizeColor(value, fallback) {
+  if (typeof value !== "string") return fallback;
+  const hex = value.startsWith("#") ? value.slice(1) : value;
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return fallback;
+  return `#${hex.toLowerCase()}`;
+}
+
+function format2(value) {
+  return Number(value).toFixed(2);
+}
 
 function setStatus(state, text) {
   statusEl.dataset.state = state;
   statusEl.textContent = text;
 }
 
-if (endpointEl) {
-  endpointEl.textContent = WS_URL;
+function setModeButtonsActive(mode) {
+  if (!modeFacesEl || !modeWireframeEl) return;
+  const isFaces = mode === "faces";
+  modeFacesEl.dataset.active = isFaces ? "true" : "false";
+  modeWireframeEl.dataset.active = isFaces ? "false" : "true";
+  modeFacesEl.setAttribute("aria-pressed", isFaces ? "true" : "false");
+  modeWireframeEl.setAttribute("aria-pressed", isFaces ? "false" : "true");
 }
 
-function setOpacityLabels() {
-  if (fillOpacityValueEl) fillOpacityValueEl.textContent = Number(fillOpacityEl.value).toFixed(2);
-  if (wireOpacityValueEl) wireOpacityValueEl.textContent = Number(wireOpacityEl.value).toFixed(2);
+function setControlPanelsVisible(mode) {
+  if (!facesControlsEl || !wireControlsEl) return;
+  facesControlsEl.classList.toggle("hidden", mode !== "faces");
+  wireControlsEl.classList.toggle("hidden", mode !== "wireframe");
 }
+
+function switchOrbMode(mode) {
+  if (mode !== "faces" && mode !== "wireframe") return;
+  const url = new URL(window.location.href);
+  url.searchParams.set("orbStyle", mode);
+  window.location.href = url.toString();
+}
+window.switchOrbMode = switchOrbMode;
 
 function readStyleFromControls() {
+  if (ORB_MODE === "faces") {
+    return {
+      fillColor: normalizeColor(facesFillColorEl.value, DEFAULT_STYLE.faces.fillColor),
+      fillOpacity: clamp01(Number(facesFillOpacityEl.value)),
+      explodeAmount: clampExplode(Number(facesExplodeEl.value)),
+    };
+  }
+
   return {
-    fillColor: fillColorEl.value,
-    fillOpacity: Number(fillOpacityEl.value),
-    wireColor: wireColorEl.value,
-    wireOpacity: Number(wireOpacityEl.value),
-    wireVisible: wireVisibleEl.checked,
+    fillColor: normalizeColor(wireFillColorEl.value, DEFAULT_STYLE.wireframe.fillColor),
+    fillOpacity: clamp01(Number(wireFillOpacityEl.value)),
+    wireColor: normalizeColor(wireLineColorEl.value, DEFAULT_STYLE.wireframe.wireColor),
+    wireOpacity: clamp01(Number(wireLineOpacityEl.value)),
   };
 }
 
-function writeStyleToControls(style) {
-  fillColorEl.value = style.fillColor;
-  fillOpacityEl.value = String(style.fillOpacity);
-  wireColorEl.value = style.wireColor;
-  wireOpacityEl.value = String(style.wireOpacity);
-  wireVisibleEl.checked = Boolean(style.wireVisible);
-  setOpacityLabels();
+function writeStyleToControls(rawStyle = {}) {
+  if (ORB_MODE === "faces") {
+    const s = { ...DEFAULT_STYLE.faces, ...rawStyle };
+    facesFillColorEl.value = normalizeColor(s.fillColor, DEFAULT_STYLE.faces.fillColor);
+    facesFillOpacityEl.value = String(clamp01(Number(s.fillOpacity)));
+    facesExplodeEl.value = String(clampExplode(Number(s.explodeAmount)));
+
+    facesFillOpacityValueEl.textContent = format2(facesFillOpacityEl.value);
+    facesExplodeValueEl.textContent = format2(facesExplodeEl.value);
+    return;
+  }
+
+  const s = { ...DEFAULT_STYLE.wireframe, ...rawStyle };
+  wireFillColorEl.value = normalizeColor(s.fillColor, DEFAULT_STYLE.wireframe.fillColor);
+  wireFillOpacityEl.value = String(clamp01(Number(s.fillOpacity)));
+  wireLineColorEl.value = normalizeColor(s.wireColor, DEFAULT_STYLE.wireframe.wireColor);
+  wireLineOpacityEl.value = String(clamp01(Number(s.wireOpacity)));
+
+  wireFillOpacityValueEl.textContent = format2(wireFillOpacityEl.value);
+  wireLineOpacityValueEl.textContent = format2(wireLineOpacityEl.value);
 }
 
 function applyOrbStyleFromControls() {
@@ -59,37 +140,58 @@ function applyOrbStyleFromControls() {
   window.orb.setStyle(readStyleFromControls());
 }
 
-function initializeOrbControls() {
-  if (
-    !fillColorEl ||
-    !fillOpacityEl ||
-    !fillOpacityValueEl ||
-    !wireColorEl ||
-    !wireOpacityEl ||
-    !wireOpacityValueEl ||
-    !wireVisibleEl ||
-    !resetStyleEl
-  ) {
-    return;
+function initializeModeControls() {
+  setModeButtonsActive(ORB_MODE);
+  setControlPanelsVisible(ORB_MODE);
+
+  if (modeFacesEl) {
+    modeFacesEl.addEventListener("click", () => {
+      if (ORB_MODE !== "faces") switchOrbMode("faces");
+    });
   }
 
-  const onInput = () => {
-    setOpacityLabels();
-    applyOrbStyleFromControls();
-  };
+  if (modeWireframeEl) {
+    modeWireframeEl.addEventListener("click", () => {
+      if (ORB_MODE !== "wireframe") switchOrbMode("wireframe");
+    });
+  }
+}
 
-  fillColorEl.addEventListener("input", onInput);
-  fillOpacityEl.addEventListener("input", onInput);
-  wireColorEl.addEventListener("input", onInput);
-  wireOpacityEl.addEventListener("input", onInput);
-  wireVisibleEl.addEventListener("change", onInput);
+function initializeStyleControls() {
+  if (ORB_MODE === "faces") {
+    const onInput = () => {
+      writeStyleToControls(readStyleFromControls());
+      applyOrbStyleFromControls();
+    };
 
-  resetStyleEl.addEventListener("click", () => {
-    writeStyleToControls(DEFAULT_ORB_STYLE);
-    applyOrbStyleFromControls();
-  });
+    facesFillColorEl.addEventListener("input", onInput);
+    facesFillOpacityEl.addEventListener("input", onInput);
+    facesExplodeEl.addEventListener("input", onInput);
 
-  setOpacityLabels();
+    facesResetEl.addEventListener("click", () => {
+      writeStyleToControls(DEFAULT_STYLE.faces);
+      applyOrbStyleFromControls();
+    });
+
+    writeStyleToControls(DEFAULT_STYLE.faces);
+  } else {
+    const onInput = () => {
+      writeStyleToControls(readStyleFromControls());
+      applyOrbStyleFromControls();
+    };
+
+    wireFillColorEl.addEventListener("input", onInput);
+    wireFillOpacityEl.addEventListener("input", onInput);
+    wireLineColorEl.addEventListener("input", onInput);
+    wireLineOpacityEl.addEventListener("input", onInput);
+
+    wireResetEl.addEventListener("click", () => {
+      writeStyleToControls(DEFAULT_STYLE.wireframe);
+      applyOrbStyleFromControls();
+    });
+
+    writeStyleToControls(DEFAULT_STYLE.wireframe);
+  }
 
   const syncFromOrb = () => {
     if (!window.orb || typeof window.orb.getStyle !== "function") return;
@@ -128,20 +230,15 @@ function handleMessage(raw) {
     return;
   }
 
-  const data = {
-    dir,
-  };
-
+  const data = { dir };
   latestEl.textContent = JSON.stringify(data, null, 2);
 
   if (window.orb && typeof window.orb.update === "function") {
     orbMissingWarned = false;
     window.orb.update(data);
-  } else {
-    if (!orbMissingWarned) {
-      console.warn("window.orb.update(data) is not available yet.");
-      orbMissingWarned = true;
-    }
+  } else if (!orbMissingWarned) {
+    console.warn("window.orb.update(data) is not available yet.");
+    orbMissingWarned = true;
   }
 }
 
@@ -167,5 +264,10 @@ function connect() {
   });
 }
 
-initializeOrbControls();
+if (endpointEl) {
+  endpointEl.textContent = WS_URL;
+}
+
+initializeModeControls();
+initializeStyleControls();
 connect();
