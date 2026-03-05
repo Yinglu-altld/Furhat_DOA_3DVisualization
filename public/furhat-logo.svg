@@ -1,0 +1,17 @@
+<svg width="430" height="86" viewBox="0 0 430 86" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g fill="#0b1221">
+    <circle cx="26" cy="27" r="15" />
+    <path d="M11 55L45 68V80L11 67V55Z" />
+  </g>
+  <text
+    x="77"
+    y="58"
+    fill="#0b1221"
+    font-size="48"
+    font-family="Avenir Next, Segoe UI, Helvetica, Arial, sans-serif"
+    font-weight="600"
+    letter-spacing="0.2"
+  >
+    Furhat Robotics
+  </text>
+</svg>

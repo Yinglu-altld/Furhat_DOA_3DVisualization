@@ -4,18 +4,22 @@ import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 const scene = new THREE.Scene();
+const stageEl = document.getElementById("viz-root") || document.body;
+const initialBounds = stageEl.getBoundingClientRect();
+const initialWidth = Math.max(1, initialBounds.width || window.innerWidth);
+const initialHeight = Math.max(1, initialBounds.height || window.innerHeight);
 const camera = new THREE.PerspectiveCamera(
   75,
-  window.innerWidth / window.innerHeight,
+  initialWidth / initialHeight,
   0.1,
   1000
 );
 camera.position.z = 1;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
+renderer.setSize(initialWidth, initialHeight);
+stageEl.appendChild(renderer.domElement);
 
 const controler = new OrbitControls(camera, renderer.domElement);
 controler.enableDamping = true;
@@ -246,10 +250,19 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+function resizeRendererToStage() {
+  const bounds = stageEl.getBoundingClientRect();
+  const width = Math.max(1, bounds.width);
+  const height = Math.max(1, bounds.height);
+  camera.aspect = width / height;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+  renderer.setSize(width, height, false);
+}
+
+window.addEventListener("resize", resizeRendererToStage);
+if (typeof ResizeObserver !== "undefined") {
+  const stageObserver = new ResizeObserver(() => resizeRendererToStage());
+  stageObserver.observe(stageEl);
+}
 
 animate();
