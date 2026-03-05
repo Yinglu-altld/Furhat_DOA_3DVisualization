@@ -3,7 +3,7 @@ import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-let arrowColor = "red";
+let arrowColor = 0xB60854;
 
 // Setting the camera
 const scene = new THREE.Scene();
@@ -51,7 +51,7 @@ mtlLoader.load("./speaker.mtl", (materials) => {
 });
 
 // Setting up a cylinder
-const geometry = new THREE.CylinderGeometry( 0, 0.03, 0.3, 64 );
+const geometry = new THREE.CylinderGeometry( 0.01, 0.03, 0.3, 64 );
 const material = new THREE.MeshPhongMaterial( { color: arrowColor } );
 const cylinder = new THREE.Mesh( geometry, material );
 cylinder.position.y = 0.15;
@@ -60,6 +60,12 @@ cylinder.position.y = 0.15;
 const sphereGeo = new THREE.SphereGeometry( 0.03, 64 );
 const sphere = new THREE.Mesh( sphereGeo, material );
 scene.add( sphere );
+
+// Arrow tip
+const tipGeo = new THREE.ConeGeometry( 0.03, 0.03, 64 );
+const arrowTip = new THREE.Mesh( tipGeo, material );
+arrowTip.position.y = 0.15;
+cylinder.add( arrowTip );
 
 // Parent arrow
 const arrow = new THREE.Object3D();
