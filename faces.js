@@ -3,6 +3,8 @@ import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
+let meshColor = "blue";
+
 // Setting the camera
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
@@ -65,7 +67,7 @@ const posAttr = geometry.attributes.position;
 const basePositions = posAttr.array.slice(); // copy
 
 const material = new THREE.MeshPhongMaterial({
-  color: "blue",
+  color: meshColor,
   opacity: 0.3,
   transparent: true,
   side: THREE.DoubleSide,

@@ -3,6 +3,9 @@ import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
+let meshColor = 0xDE0B67;
+let edgeColor = 0x50E5A8;
+
 // Setting the camera
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(
@@ -64,7 +67,7 @@ const posAttr = geometry.attributes.position;
 const basePositions = posAttr.array.slice(); // copy
 
 const material = new THREE.MeshPhongMaterial({
-  color: 0x5e07c3,
+  color: meshColor,
   opacity: 0.2,
   transparent: true,
   side: THREE.DoubleSide,
@@ -75,7 +78,7 @@ scene.add(icosahedron);
 
 // Creating wireframe for cool effect
 const lineMaterial = new THREE.MeshPhongMaterial({
-  color: 0x76f3f7,
+  color: edgeColor,
   wireframe: true,
   opacity: 0.5,
   transparent: true,
