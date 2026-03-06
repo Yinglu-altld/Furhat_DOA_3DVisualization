@@ -14,3 +14,19 @@ python ws_jsonl_bridge.py --jsonl doa_xyz_frames.jsonl --from-end --host 0.0.0.0
 ```powershell
 python plot_doa_3d.py --jsonl doa_xyz_frames.jsonl --follow --tail 500 --refresh-ms 200
 ```
+------------------------------------------------------------------
+
+OVERALL TESTING OF WHOLE THING
+# Terminal A
+cd "C:\Users\upill\getting strted\soundorb"
+python doa_respeaker_only.py --device 1 --channels 6 --axis-check --xyz-jsonl doa_xyz_frames.jsonl --xyz-minimal --energy-threshold 35 --energy-update-threshold 50 --snr-speech-ratio 1.1 --snr-speech-add 8 --snr-update-ratio 1.2 --snr-update-add 12 --min-speech-frames 1 --min-update-frames 1 --speech-hold-ms 80 --doa-quality-threshold 0.08
+
+
+# Terminal B
+cd "C:\Users\upill\getting strted\soundorb"
+python ws_jsonl_bridge.py --jsonl doa_xyz_frames.jsonl --from-end --host 0.0.0.0 --port 8765
+
+# Terminal C
+cd "C:\Users\upill\getting strted\Furhat_DOA_3DVisualization"
+python -m http.server 8080
+Open: http://127.0.0.1:8080
