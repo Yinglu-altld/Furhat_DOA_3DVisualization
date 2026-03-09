@@ -285,6 +285,13 @@ def main():
                         if quality_ok:
                             az = wrap(float(doa_az))
                             el = float(doa_el)
+                            # Reject implausibly large direction jumps unless the SRP peak is strong.
+                            if locked_az is not None and locked_el is not None:
+                                az_jump = abs(cdelta(locked_az, az))
+                                el_jump = abs(el - float(locked_el))
+                                if (az_jump > 30.0 or el_jump > 20.0) and float(conf) < 0.25:
+                                    quality_ok = False
+                        if quality_ok:
                             if locked_az is None or locked_el is None:
                                 locked_az = az
                                 locked_el = el
