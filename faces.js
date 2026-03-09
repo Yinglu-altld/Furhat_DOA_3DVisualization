@@ -4,7 +4,7 @@ import { POWER } from "./sceneSetup.js";
 
 const {scene, camera, renderer, controls, doaState} = createSceneSetup();
 
-let meshColor = 0xCFA1F3;
+let meshColor = 0x00ffcc;
 
 // Creating the orb (icosahedron)
 let geometry = new THREE.IcosahedronGeometry(0.34, 3);
@@ -26,16 +26,13 @@ const icosahedron = new THREE.Mesh(geometry, material);
 scene.add(icosahedron);
 
 // Creating wireframe for cool effect
-const edgeGeom = new THREE.EdgesGeometry(geometry, 20);
-const lineMaterial = new THREE.LineBasicMaterial({
-  color: 0x76f3f7,
+const lineMaterial = new THREE.MeshPhongMaterial({
+  color: 0x00ffaa,
   wireframe: true,
-  opacity: 0.5,
+  opacity: 0.6,
   transparent: true,
-  depthWrite: false,
-  depthTest: true,
 });
-const edgeLines = new THREE.LineSegments(edgeGeom, lineMaterial);
+const edgeLines = new THREE.Mesh(geometry, lineMaterial);
 icosahedron.add(edgeLines);
 
 // Reuse vectors (avoid per-frame allocations)
