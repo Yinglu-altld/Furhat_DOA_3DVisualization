@@ -1,64 +1,8 @@
 import * as THREE from "three";
-import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
-import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { createSceneSetup, POWER } from "./sceneSetup.js";
+import { createDirectionController } from "./doaController.js";
 
-const scene = new THREE.Scene();
-const stageEl = document.getElementById("viz-root") || document.body;
-const initialBounds = stageEl.getBoundingClientRect();
-const initialWidth = Math.max(1, initialBounds.width || window.innerWidth);
-const initialHeight = Math.max(1, initialBounds.height || window.innerHeight);
-const camera = new THREE.PerspectiveCamera(
-  75,
-  initialWidth / initialHeight,
-  0.1,
-  1000
-);
-camera.position.z = 1;
-
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-renderer.setSize(initialWidth, initialHeight);
-stageEl.appendChild(renderer.domElement);
-
-const controler = new OrbitControls(camera, renderer.domElement);
-controler.enableDamping = true;
-controler.dampingFactor = 0.1;
-controler.enableZoom = false;
-
-let ambiLight = false;
-
-if (ambiLight) {
-  const ambient = new THREE.AmbientLight(0xffffff, 3);
-  scene.add(ambient);
-} else {
-  const light = new THREE.DirectionalLight(0xffffff, 5);
-  light.position.set(1, 4, 2);
-  scene.add(light);
-
-  const backLight = new THREE.DirectionalLight(0xffffff, 2);
-  backLight.position.set(-1, -4, -2);
-  scene.add(backLight);
-}
-
-const objLoader = new OBJLoader();
-const mtlLoader = new MTLLoader();
-
-mtlLoader.load("/public/speaker.mtl", (materials) => {
-  materials.preload();
-  objLoader.setMaterials(materials);
-
-  objLoader.load(
-    "/public/speaker.obj",
-    (root) => {
-      root.scale.set(9, 9, 9);
-      root.rotation.x = -Math.PI / 2;
-      scene.add(root);
-    },
-    undefined,
-    (err) => console.error("OBJ load error:", err)
-  );
-});
+const { scene, camera, renderer, controls } = createSceneSetup();
 
 let geometry = new THREE.IcosahedronGeometry(0.34, 3);
 geometry = geometry.toNonIndexed();
@@ -88,20 +32,23 @@ const lineMaterial = new THREE.LineBasicMaterial({
 const edgeLines = new THREE.LineSegments(edgeGeom, lineMaterial);
 icosahedron.add(edgeLines);
 
+const directionController = createDirectionController();
+
 const v = new THREE.Vector3();
 const n = new THREE.Vector3();
-const direction = new THREE.Vector3(1, 0, 0);
-let hasExternalDOA = false;
-let lastDOATimeMs = 0;
-const idleClock = new THREE.Clock();
-const idleDirection = new THREE.Vector3(1, 0, 0);
-const DOA_ACTIVE_TIMEOUT_MS = 1200;
-const IDLE_ROT_SPEED = 0.35;
-const IDLE_ELEVATION = 0.2;
-const IDLE_STRENGTH_BASE = 0.045;
-const IDLE_STRENGTH_PULSE = 0.03;
-const IDLE_EXPLODE_BASE = 0.06;
-const IDLE_EXPLODE_PULSE = 0.02;
+const ACTIVE_STRENGTH = 0.12;
+
+function resetToBaseShape() {
+  const pos = geometry.attributes.position;
+
+  for (let i = 0; i < pos.count; i++) {
+    const ix = i * 3;
+    pos.setXYZ(i, basePositions[ix], basePositions[ix + 1], basePositions[ix + 2]);
+  }
+
+  pos.needsUpdate = true;
+  geometry.computeVertexNormals();
+}
 
 function spikeTowards(dir, strength) {
   const pos = geometry.attributes.position;
@@ -114,18 +61,15 @@ function spikeTowards(dir, strength) {
 
     let w = n.dot(dir);
     w = Math.max(0, w);
-    w = Math.pow(w, 14);
+    w = Math.pow(w, POWER);
 
     v.addScaledVector(n, w * strength);
-
     pos.setXYZ(i, v.x, v.y, v.z);
   }
 
   pos.needsUpdate = true;
   geometry.computeVertexNormals();
 }
-
-let str = 0.12;
 
 const tmpA = new THREE.Vector3();
 const tmpB = new THREE.Vector3();
@@ -141,10 +85,7 @@ function explodeFaces(amount) {
     tmpB.fromBufferAttribute(pos, i + 1);
     tmpC.fromBufferAttribute(pos, i + 2);
 
-    faceNormal
-      .subVectors(tmpB, tmpA)
-      .cross(tmpC.clone().sub(tmpA))
-      .normalize();
+    faceNormal.subVectors(tmpB, tmpA).cross(tmpC.clone().sub(tmpA)).normalize();
 
     tmpA.addScaledVector(faceNormal, amount);
     tmpB.addScaledVector(faceNormal, amount);
@@ -154,6 +95,7 @@ function explodeFaces(amount) {
     pos.setXYZ(i + 1, tmpB.x, tmpB.y, tmpB.z);
     pos.setXYZ(i + 2, tmpC.x, tmpC.y, tmpC.z);
   }
+
   pos.needsUpdate = true;
 }
 
@@ -202,18 +144,7 @@ function setOrbStyle(style = {}) {
 
 window.orb = {
   update(data) {
-    if (!data || typeof data !== "object") return;
-    const source = data.dir && typeof data.dir === "object" ? data.dir : data;
-    const x = Number(source.x);
-    const y = Number(source.y);
-    const z = Number(source.z);
-    if (![x, y, z].every((num) => Number.isFinite(num))) return;
-
-    direction.set(x, y, z);
-    if (direction.lengthSq() < 1e-8) return;
-    direction.normalize();
-    hasExternalDOA = true;
-    lastDOATimeMs = Date.now();
+    directionController.updateFromData(data);
   },
   setStyle(style) {
     setOrbStyle(style);
@@ -227,42 +158,17 @@ window.dispatchEvent(new Event("orb-ready"));
 function animate() {
   requestAnimationFrame(animate);
 
-  const hasFreshDOA = hasExternalDOA && Date.now() - lastDOATimeMs < DOA_ACTIVE_TIMEOUT_MS;
+  const { direction, hasFreshDOA } = directionController.getDirectionStep();
 
   if (hasFreshDOA) {
-    spikeTowards(direction, str * 1.8);
+    spikeTowards(direction, ACTIVE_STRENGTH * 1.8);
     explodeFaces(explode);
   } else {
-    const t = idleClock.getElapsedTime();
-    const a = t * IDLE_ROT_SPEED;
-    idleDirection
-      .set(Math.cos(a), IDLE_ELEVATION + 0.05 * Math.sin(t * 0.23), Math.sin(a))
-      .normalize();
-
-    const idleStrength = IDLE_STRENGTH_BASE + IDLE_STRENGTH_PULSE * (0.5 + 0.5 * Math.sin(t * 0.8));
-    const idleExplode = IDLE_EXPLODE_BASE + IDLE_EXPLODE_PULSE * Math.sin(t * 0.9);
-
-    spikeTowards(idleDirection, idleStrength);
-    explodeFaces(idleExplode);
+    resetToBaseShape();
   }
 
-  controler.update();
+  controls.update();
   renderer.render(scene, camera);
-}
-
-function resizeRendererToStage() {
-  const bounds = stageEl.getBoundingClientRect();
-  const width = Math.max(1, bounds.width);
-  const height = Math.max(1, bounds.height);
-  camera.aspect = width / height;
-  camera.updateProjectionMatrix();
-  renderer.setSize(width, height, false);
-}
-
-window.addEventListener("resize", resizeRendererToStage);
-if (typeof ResizeObserver !== "undefined") {
-  const stageObserver = new ResizeObserver(() => resizeRendererToStage());
-  stageObserver.observe(stageEl);
 }
 
 animate();

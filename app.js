@@ -6,9 +6,15 @@ const latestEl = document.getElementById("latest");
 
 const modeFacesEl = document.getElementById("mode-faces");
 const modeWireframeEl = document.getElementById("mode-wireframe");
+const modeArrowEl = document.getElementById("mode-arrow");
+const modeFurhatEl = document.getElementById("mode-furhat");
+
+const styleControlsRowEl = document.getElementById("style-controls-row");
 
 const facesControlsEl = document.getElementById("controls-faces");
 const wireControlsEl = document.getElementById("controls-wireframe");
+const arrowControlsEl = document.getElementById("controls-arrow");
+const furhatControlsEl = document.getElementById("controls-furhat");
 
 const facesFillColorEl = document.getElementById("faces-fill-color");
 const facesFillOpacityEl = document.getElementById("faces-fill-opacity");
@@ -25,6 +31,20 @@ const wireLineOpacityEl = document.getElementById("wire-line-opacity");
 const wireLineOpacityValueEl = document.getElementById("wire-line-opacity-value");
 const wireResetEl = document.getElementById("wire-reset-style");
 
+const arrowColorEl = document.getElementById("arrow-color");
+const arrowLengthScaleEl = document.getElementById("arrow-length-scale");
+const arrowLengthScaleValueEl = document.getElementById("arrow-length-scale-value");
+const arrowIdlePulseEl = document.getElementById("arrow-idle-pulse");
+const arrowIdlePulseValueEl = document.getElementById("arrow-idle-pulse-value");
+const arrowResetEl = document.getElementById("arrow-reset-style");
+
+const furhatAccentColorEl = document.getElementById("furhat-accent-color");
+const furhatTurnGainEl = document.getElementById("furhat-turn-gain");
+const furhatTurnGainValueEl = document.getElementById("furhat-turn-gain-value");
+const furhatBobAmountEl = document.getElementById("furhat-bob-amount");
+const furhatBobAmountValueEl = document.getElementById("furhat-bob-amount-value");
+const furhatResetEl = document.getElementById("furhat-reset-style");
+
 const DEFAULT_STYLE = {
   faces: {
     fillColor: "#0000ff",
@@ -37,12 +57,31 @@ const DEFAULT_STYLE = {
     wireColor: "#76f3f7",
     wireOpacity: 0.5,
   },
+  arrow: {
+    arrowColor: "#4de7c8",
+    lengthScale: 1,
+    idlePulse: 0.28,
+  },
+  furhat: {
+    accentColor: "#22d6ff",
+    turnGain: 1,
+    bobAmount: 0.16,
+  },
 };
 
 function getOrbMode() {
   const fromUrl = new URLSearchParams(window.location.search).get("orbStyle");
-  if (fromUrl === "faces" || fromUrl === "wireframe") return fromUrl;
-  if (window.__orbStyle === "faces" || window.__orbStyle === "wireframe") return window.__orbStyle;
+  if (fromUrl === "faces" || fromUrl === "wireframe" || fromUrl === "arrow" || fromUrl === "furhat") {
+    return fromUrl;
+  }
+  if (
+    window.__orbStyle === "faces" ||
+    window.__orbStyle === "wireframe" ||
+    window.__orbStyle === "arrow" ||
+    window.__orbStyle === "furhat"
+  ) {
+    return window.__orbStyle;
+  }
   return "faces";
 }
 
@@ -55,6 +94,22 @@ function clamp01(value) {
 
 function clampExplode(value) {
   return Math.max(0, Math.min(0.3, value));
+}
+
+function clampLengthScale(value) {
+  return Math.max(0.5, Math.min(2.5, value));
+}
+
+function clampIdlePulse(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function clampTurnGain(value) {
+  return Math.max(0.2, Math.min(2.5, value));
+}
+
+function clampBobAmount(value) {
+  return Math.max(0, Math.min(0.4, value));
 }
 
 function normalizeColor(value, fallback) {
@@ -74,22 +129,40 @@ function setStatus(state, text) {
 }
 
 function setModeButtonsActive(mode) {
-  if (!modeFacesEl || !modeWireframeEl) return;
+  if (!modeFacesEl || !modeWireframeEl || !modeArrowEl || !modeFurhatEl) return;
+
   const isFaces = mode === "faces";
+  const isWireframe = mode === "wireframe";
+  const isArrow = mode === "arrow";
+  const isFurhat = mode === "furhat";
+
   modeFacesEl.dataset.active = isFaces ? "true" : "false";
-  modeWireframeEl.dataset.active = isFaces ? "false" : "true";
+  modeWireframeEl.dataset.active = isWireframe ? "true" : "false";
+  modeArrowEl.dataset.active = isArrow ? "true" : "false";
+  modeFurhatEl.dataset.active = isFurhat ? "true" : "false";
+
   modeFacesEl.setAttribute("aria-pressed", isFaces ? "true" : "false");
-  modeWireframeEl.setAttribute("aria-pressed", isFaces ? "false" : "true");
+  modeWireframeEl.setAttribute("aria-pressed", isWireframe ? "true" : "false");
+  modeArrowEl.setAttribute("aria-pressed", isArrow ? "true" : "false");
+  modeFurhatEl.setAttribute("aria-pressed", isFurhat ? "true" : "false");
 }
 
 function setControlPanelsVisible(mode) {
-  if (!facesControlsEl || !wireControlsEl) return;
+  if (!facesControlsEl || !wireControlsEl || !arrowControlsEl || !furhatControlsEl) return;
+
   facesControlsEl.classList.toggle("hidden", mode !== "faces");
   wireControlsEl.classList.toggle("hidden", mode !== "wireframe");
+  arrowControlsEl.classList.toggle("hidden", mode !== "arrow");
+  furhatControlsEl.classList.toggle("hidden", mode !== "furhat");
+
+  if (styleControlsRowEl) {
+    const hasModeControls = mode === "faces" || mode === "wireframe" || mode === "arrow" || mode === "furhat";
+    styleControlsRowEl.classList.toggle("hidden", !hasModeControls);
+  }
 }
 
 function switchOrbMode(mode) {
-  if (mode !== "faces" && mode !== "wireframe") return;
+  if (mode !== "faces" && mode !== "wireframe" && mode !== "arrow" && mode !== "furhat") return;
   const url = new URL(window.location.href);
   url.searchParams.set("orbStyle", mode);
   window.location.href = url.toString();
@@ -105,12 +178,32 @@ function readStyleFromControls() {
     };
   }
 
-  return {
-    fillColor: normalizeColor(wireFillColorEl.value, DEFAULT_STYLE.wireframe.fillColor),
-    fillOpacity: clamp01(Number(wireFillOpacityEl.value)),
-    wireColor: normalizeColor(wireLineColorEl.value, DEFAULT_STYLE.wireframe.wireColor),
-    wireOpacity: clamp01(Number(wireLineOpacityEl.value)),
-  };
+  if (ORB_MODE === "wireframe") {
+    return {
+      fillColor: normalizeColor(wireFillColorEl.value, DEFAULT_STYLE.wireframe.fillColor),
+      fillOpacity: clamp01(Number(wireFillOpacityEl.value)),
+      wireColor: normalizeColor(wireLineColorEl.value, DEFAULT_STYLE.wireframe.wireColor),
+      wireOpacity: clamp01(Number(wireLineOpacityEl.value)),
+    };
+  }
+
+  if (ORB_MODE === "arrow") {
+    return {
+      arrowColor: normalizeColor(arrowColorEl.value, DEFAULT_STYLE.arrow.arrowColor),
+      lengthScale: clampLengthScale(Number(arrowLengthScaleEl.value)),
+      idlePulse: clampIdlePulse(Number(arrowIdlePulseEl.value)),
+    };
+  }
+
+  if (ORB_MODE === "furhat") {
+    return {
+      accentColor: normalizeColor(furhatAccentColorEl.value, DEFAULT_STYLE.furhat.accentColor),
+      turnGain: clampTurnGain(Number(furhatTurnGainEl.value)),
+      bobAmount: clampBobAmount(Number(furhatBobAmountEl.value)),
+    };
+  }
+
+  return {};
 }
 
 function writeStyleToControls(rawStyle = {}) {
@@ -125,14 +218,38 @@ function writeStyleToControls(rawStyle = {}) {
     return;
   }
 
-  const s = { ...DEFAULT_STYLE.wireframe, ...rawStyle };
-  wireFillColorEl.value = normalizeColor(s.fillColor, DEFAULT_STYLE.wireframe.fillColor);
-  wireFillOpacityEl.value = String(clamp01(Number(s.fillOpacity)));
-  wireLineColorEl.value = normalizeColor(s.wireColor, DEFAULT_STYLE.wireframe.wireColor);
-  wireLineOpacityEl.value = String(clamp01(Number(s.wireOpacity)));
+  if (ORB_MODE === "wireframe") {
+    const s = { ...DEFAULT_STYLE.wireframe, ...rawStyle };
+    wireFillColorEl.value = normalizeColor(s.fillColor, DEFAULT_STYLE.wireframe.fillColor);
+    wireFillOpacityEl.value = String(clamp01(Number(s.fillOpacity)));
+    wireLineColorEl.value = normalizeColor(s.wireColor, DEFAULT_STYLE.wireframe.wireColor);
+    wireLineOpacityEl.value = String(clamp01(Number(s.wireOpacity)));
 
-  wireFillOpacityValueEl.textContent = format2(wireFillOpacityEl.value);
-  wireLineOpacityValueEl.textContent = format2(wireLineOpacityEl.value);
+    wireFillOpacityValueEl.textContent = format2(wireFillOpacityEl.value);
+    wireLineOpacityValueEl.textContent = format2(wireLineOpacityEl.value);
+    return;
+  }
+
+  if (ORB_MODE === "arrow") {
+    const s = { ...DEFAULT_STYLE.arrow, ...rawStyle };
+    arrowColorEl.value = normalizeColor(s.arrowColor, DEFAULT_STYLE.arrow.arrowColor);
+    arrowLengthScaleEl.value = String(clampLengthScale(Number(s.lengthScale)));
+    arrowIdlePulseEl.value = String(clampIdlePulse(Number(s.idlePulse)));
+
+    arrowLengthScaleValueEl.textContent = format2(arrowLengthScaleEl.value);
+    arrowIdlePulseValueEl.textContent = format2(arrowIdlePulseEl.value);
+    return;
+  }
+
+  if (ORB_MODE === "furhat") {
+    const s = { ...DEFAULT_STYLE.furhat, ...rawStyle };
+    furhatAccentColorEl.value = normalizeColor(s.accentColor, DEFAULT_STYLE.furhat.accentColor);
+    furhatTurnGainEl.value = String(clampTurnGain(Number(s.turnGain)));
+    furhatBobAmountEl.value = String(clampBobAmount(Number(s.bobAmount)));
+
+    furhatTurnGainValueEl.textContent = format2(furhatTurnGainEl.value);
+    furhatBobAmountValueEl.textContent = format2(furhatBobAmountEl.value);
+  }
 }
 
 function applyOrbStyleFromControls() {
@@ -155,6 +272,18 @@ function initializeModeControls() {
       if (ORB_MODE !== "wireframe") switchOrbMode("wireframe");
     });
   }
+
+  if (modeArrowEl) {
+    modeArrowEl.addEventListener("click", () => {
+      if (ORB_MODE !== "arrow") switchOrbMode("arrow");
+    });
+  }
+
+  if (modeFurhatEl) {
+    modeFurhatEl.addEventListener("click", () => {
+      if (ORB_MODE !== "furhat") switchOrbMode("furhat");
+    });
+  }
 }
 
 function initializeStyleControls() {
@@ -174,7 +303,7 @@ function initializeStyleControls() {
     });
 
     writeStyleToControls(DEFAULT_STYLE.faces);
-  } else {
+  } else if (ORB_MODE === "wireframe") {
     const onInput = () => {
       writeStyleToControls(readStyleFromControls());
       applyOrbStyleFromControls();
@@ -191,6 +320,40 @@ function initializeStyleControls() {
     });
 
     writeStyleToControls(DEFAULT_STYLE.wireframe);
+  } else if (ORB_MODE === "arrow") {
+    const onInput = () => {
+      writeStyleToControls(readStyleFromControls());
+      applyOrbStyleFromControls();
+    };
+
+    arrowColorEl.addEventListener("input", onInput);
+    arrowLengthScaleEl.addEventListener("input", onInput);
+    arrowIdlePulseEl.addEventListener("input", onInput);
+
+    arrowResetEl.addEventListener("click", () => {
+      writeStyleToControls(DEFAULT_STYLE.arrow);
+      applyOrbStyleFromControls();
+    });
+
+    writeStyleToControls(DEFAULT_STYLE.arrow);
+  } else if (ORB_MODE === "furhat") {
+    const onInput = () => {
+      writeStyleToControls(readStyleFromControls());
+      applyOrbStyleFromControls();
+    };
+
+    furhatAccentColorEl.addEventListener("input", onInput);
+    furhatTurnGainEl.addEventListener("input", onInput);
+    furhatBobAmountEl.addEventListener("input", onInput);
+
+    furhatResetEl.addEventListener("click", () => {
+      writeStyleToControls(DEFAULT_STYLE.furhat);
+      applyOrbStyleFromControls();
+    });
+
+    writeStyleToControls(DEFAULT_STYLE.furhat);
+  } else {
+    return;
   }
 
   const syncFromOrb = () => {
