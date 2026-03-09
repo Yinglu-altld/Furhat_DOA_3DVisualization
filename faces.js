@@ -3,7 +3,7 @@ import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-let meshColor = "blue";
+let meshColor = 0xCFA1F3;
 
 // Setting the camera
 const scene = new THREE.Scene();
@@ -161,7 +161,7 @@ function explodeFaces( amount ) {
 let DOAData = [];
 let jsonIndex = 0;
 const clock = new THREE.Clock();
-const stepTime = 0.017;
+const stepTime = 0.1;
 
 // Fetching json data
 fetch("./doa_xyz_frames.jsonl")
@@ -177,14 +177,35 @@ fetch("./doa_xyz_frames.jsonl")
   })
   .catch(err => console.error("JSONL load error:", err));
 
+// Linear interpolation for smoothing
+function lerp( a, b, t ) {
+  return a + ( b - a ) * t;
+}
+
+function linInt( a, b, t ) {
+  return {
+    x: lerp( a.x, b.x, t ),
+    y: lerp( a.y, b.y, t ),
+    z: lerp( a.z, b.z, t ),
+    confidence: lerp( a.confidence, b.confidence, t ),
+  };
+}
+
 // Looping animation & updating views
 function animate() {
   requestAnimationFrame(animate);
 
 if ( DOAData.length > 0 ) {
-    const t = clock.getElapsedTime();
-    const index = Math.floor( t / stepTime ) % DOAData.length;
-    const p = DOAData[ index ];
+    const elapsed = clock.getElapsedTime();
+    const frame = elapsed / stepTime;
+    const indexA = Math.floor( frame ) % DOAData.length;
+    const indexB = ( indexA + 1 ) % DOAData.length;
+    const t = frame % 1;
+
+    const a = DOAData[ indexA ];
+    const b= DOAData[ indexB ];
+    const p = linInt( a, b, t );
+
     direction.set( p.x, p.y, p.z ).normalize();
     str = p.confidence;
 

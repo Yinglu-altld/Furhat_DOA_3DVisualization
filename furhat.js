@@ -2,10 +2,8 @@ import * as THREE from "three";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { pass } from "three/tsl";
 
-let meshColor = 0xA51AEB;
-let edgeColor = 0x1AEBC8;
+let arrowColor = "white";
 
 // Setting the camera
 const scene = new THREE.Scene();
@@ -41,86 +39,43 @@ scene.add(backLight);
 const objLoader = new OBJLoader();
 const mtlLoader = new MTLLoader();
 
-mtlLoader.load("/speaker.mtl", (materials) => {
+mtlLoader.load("./speaker.mtl", (materials) => {
   materials.preload();
   objLoader.setMaterials(materials);
 
-  objLoader.load("/speaker.obj", (root) => {
+  objLoader.load("./speaker.obj", (root) => {
     root.scale.set(9, 9, 9);
     root.rotation.x = -Math.PI / 2;
     scene.add(root);
   });
 });
 
-// Creating the orb (icosahedron)
-const geometry = new THREE.IcosahedronGeometry(0.4, 3);
+// Loading Furhat simplified mesh
+const fhScale = 1;
+let furhat = null;
+const fhLoader = new OBJLoader();
+const fhMTL = new MTLLoader();
 
-// Store the base (rest) positions so deformation doesn't accumulate
-const posAttr = geometry.attributes.position;
-const basePositions = posAttr.array.slice(); // copy
+fhMTL.load("./furhat.mtl", (fhMaterial) => {
+    fhMaterial.preload();
+    fhLoader.setMaterials(fhMaterial);
 
-const material = new THREE.MeshPhongMaterial({
-  color: meshColor,
-  opacity: 0.2,
-  transparent: true,
-  side: THREE.DoubleSide,
-  depthWrite: false,
+    fhLoader.load("./furhat.obj", (fh) => {
+        furhat = fh;
+        fh.scale.set(fhScale, fhScale, fhScale);
+        scene.add(fh);
+    });
 });
-const icosahedron = new THREE.Mesh(geometry, material);
-scene.add(icosahedron);
-
-// Creating wireframe for cool effect
-const lineMaterial = new THREE.MeshPhongMaterial({
-  color: edgeColor,
-  wireframe: true,
-  opacity: 0.5,
-  transparent: true,
-});
-const edgeLines = new THREE.Mesh(geometry, lineMaterial);
-icosahedron.add(edgeLines);
-
-// Reuse vectors (avoid per-frame allocations)
-const v = new THREE.Vector3();
-const n = new THREE.Vector3();
-
-// Function for creating spikes towards a given direction and strength
-function spikeTowards(dir, strength) {
-  const pos = geometry.attributes.position;
-
-  for (let i = 0; i < pos.count; i++) {
-    // Start from the original vertex position every frame
-    const ix = i * 3;
-    v.set(basePositions[ix], basePositions[ix + 1], basePositions[ix + 2]);
-
-    // Vertex direction from center
-    n.copy(v).normalize();
-
-    // Weight based on facing direction
-    let w = n.dot(dir);     // [-1..1]
-    w = Math.max(0, w);     // only in front
-    w = Math.pow(w, 14);    // sharp spike
-
-    // Push outward along the normal
-    v.addScaledVector(n, w * strength);
-
-    pos.setXYZ(i, v.x, v.y, v.z);
-  }
-
-  pos.needsUpdate = true;
-  geometry.computeVertexNormals();
-}
-
-let str = 0.22;
-// const angularSpeed = 1;
-
-// Reuse direction vector too
-const direction = new THREE.Vector3();
 
 // Helpers for json file
 let DOAData = [];
 let jsonIndex = 0;
 const clock = new THREE.Clock();
 const stepTime = 0.1;
+
+const direction = new THREE.Vector3();
+let str = 0.2;
+let p = null;
 
 // Fetching json data
 fetch("./doa_xyz_frames.jsonl")
@@ -150,7 +105,7 @@ function linInt( a, b, t ) {
   };
 }
 
-// Looping animation & updating views
+// Creating animation
 function animate() {
   requestAnimationFrame(animate);
 
@@ -167,13 +122,13 @@ function animate() {
 
     direction.set( p.x, p.y, p.z ).normalize();
     str = p.confidence;
-
-    spikeTowards(direction, str * 1.8);
-
   }
 
   controler.update();
-  renderer.render(scene, camera);
+  renderer.render( scene, camera );
+  furhat.position.y = str * 2 - 0.1;
+  const yaw = Math.atan2( direction.x, direction.y );
+  furhat.rotation.y = yaw;
 }
 
 animate();
