@@ -34,8 +34,6 @@ const wireResetEl = document.getElementById("wire-reset-style");
 const arrowColorEl = document.getElementById("arrow-color");
 const arrowLengthScaleEl = document.getElementById("arrow-length-scale");
 const arrowLengthScaleValueEl = document.getElementById("arrow-length-scale-value");
-const arrowIdlePulseEl = document.getElementById("arrow-idle-pulse");
-const arrowIdlePulseValueEl = document.getElementById("arrow-idle-pulse-value");
 const arrowResetEl = document.getElementById("arrow-reset-style");
 
 const furhatAccentColorEl = document.getElementById("furhat-accent-color");
@@ -60,7 +58,6 @@ const DEFAULT_STYLE = {
   arrow: {
     arrowColor: "#4de7c8",
     lengthScale: 1,
-    idlePulse: 0.28,
   },
   furhat: {
     accentColor: "#22d6ff",
@@ -98,10 +95,6 @@ function clampExplode(value) {
 
 function clampLengthScale(value) {
   return Math.max(0.5, Math.min(2.5, value));
-}
-
-function clampIdlePulse(value) {
-  return Math.max(0, Math.min(1, value));
 }
 
 function clampTurnGain(value) {
@@ -191,7 +184,6 @@ function readStyleFromControls() {
     return {
       arrowColor: normalizeColor(arrowColorEl.value, DEFAULT_STYLE.arrow.arrowColor),
       lengthScale: clampLengthScale(Number(arrowLengthScaleEl.value)),
-      idlePulse: clampIdlePulse(Number(arrowIdlePulseEl.value)),
     };
   }
 
@@ -234,10 +226,8 @@ function writeStyleToControls(rawStyle = {}) {
     const s = { ...DEFAULT_STYLE.arrow, ...rawStyle };
     arrowColorEl.value = normalizeColor(s.arrowColor, DEFAULT_STYLE.arrow.arrowColor);
     arrowLengthScaleEl.value = String(clampLengthScale(Number(s.lengthScale)));
-    arrowIdlePulseEl.value = String(clampIdlePulse(Number(s.idlePulse)));
 
     arrowLengthScaleValueEl.textContent = format2(arrowLengthScaleEl.value);
-    arrowIdlePulseValueEl.textContent = format2(arrowIdlePulseEl.value);
     return;
   }
 
@@ -328,7 +318,6 @@ function initializeStyleControls() {
 
     arrowColorEl.addEventListener("input", onInput);
     arrowLengthScaleEl.addEventListener("input", onInput);
-    arrowIdlePulseEl.addEventListener("input", onInput);
 
     arrowResetEl.addEventListener("click", () => {
       writeStyleToControls(DEFAULT_STYLE.arrow);

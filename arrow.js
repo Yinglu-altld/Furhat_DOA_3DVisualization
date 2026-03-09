@@ -30,17 +30,11 @@ const q = new THREE.Quaternion();
 
 const ACTIVE_LENGTH = 2.4;
 const IDLE_LENGTH_BASE = 1.7;
-const IDLE_LENGTH_PULSE_BASE = 0.28;
 
 let lengthScale = 1;
-let idlePulse = IDLE_LENGTH_PULSE_BASE;
 
 function clampLengthScale(value) {
   return THREE.MathUtils.clamp(value, 0.5, 2.5);
-}
-
-function clampIdlePulse(value) {
-  return THREE.MathUtils.clamp(value, 0, 1);
 }
 
 function normalizeHexColor(value, fallback) {
@@ -55,7 +49,6 @@ function getOrbStyle() {
   return {
     arrowColor: `#${material.color.getHexString()}`,
     lengthScale: Number(lengthScale.toFixed(2)),
-    idlePulse: Number(idlePulse.toFixed(2)),
   };
 }
 
@@ -69,10 +62,6 @@ function setOrbStyle(style = {}) {
 
   if ("lengthScale" in style && Number.isFinite(style.lengthScale)) {
     lengthScale = clampLengthScale(style.lengthScale);
-  }
-
-  if ("idlePulse" in style && Number.isFinite(style.idlePulse)) {
-    idlePulse = clampIdlePulse(style.idlePulse);
   }
 }
 
