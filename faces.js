@@ -1,61 +1,10 @@
 import * as THREE from "three";
-import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
-import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { createSceneSetup, linInt } from "./sceneSetup.js";
+import { POWER } from "./sceneSetup.js";
+
+const {scene, camera, renderer, controls, doaState} = createSceneSetup();
 
 let meshColor = 0xCFA1F3;
-
-// Setting the camera
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(
-  75,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-);
-camera.position.z = 1;
-
-// Setting the renderer
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
-
-// Setting up orbit camera controls
-const controler = new OrbitControls(camera, renderer.domElement);
-controler.enableDamping = true;
-controler.dampingFactor = 0.1;
-controler.enableZoom = false;
-
-// Setting the lights
-let ambiLight = false;
-
-if (ambiLight) {
-  const ambient = new THREE.AmbientLight(0xffffff, 3);
-  scene.add(ambient);
-} else {
-  const light = new THREE.DirectionalLight(0xffffff, 5);
-  light.position.set(1, 4, 2);
-  scene.add(light);
-
-  const backLight = new THREE.DirectionalLight(0xffffff, 2);
-  backLight.position.set(-1, -4, -2); // fixed typo
-  scene.add(backLight);
-}
-
-// Adding .obj and .mtl file of respeaker (note: material must load before obj to apply)
-const objLoader = new OBJLoader();
-const mtlLoader = new MTLLoader();
-
-mtlLoader.load("/speaker.mtl", (materials) => {
-  materials.preload();
-  objLoader.setMaterials(materials);
-
-  objLoader.load("/speaker.obj", (root) => {
-    root.scale.set(9, 9, 9);
-    root.rotation.x = -Math.PI / 2;
-    scene.add(root);
-  });
-});
 
 // Creating the orb (icosahedron)
 let geometry = new THREE.IcosahedronGeometry(0.34, 3);
@@ -108,7 +57,7 @@ function spikeTowards(dir, strength) {
     // Weight based on facing direction
     let w = n.dot(dir);     // [-1..1]
     w = Math.max(0, w);     // only in front
-    w = Math.pow(w, 14);    // sharp spike
+    w = Math.pow(w, POWER);    // sharp spike
 
     // Push outward along the normal
     v.addScaledVector(n, w * strength);
@@ -119,11 +68,6 @@ function spikeTowards(dir, strength) {
   pos.needsUpdate = true;
   geometry.computeVertexNormals();
 }
-
-let str = 0.12;
-
-// Reuse direction vector too
-const direction = new THREE.Vector3();
 
 // Explotion function
 const tmpA = new THREE.Vector3();
@@ -157,64 +101,32 @@ function explodeFaces( amount ) {
   pos.needsUpdate = true;
 }
 
-// Helpers for json file
-let DOAData = [];
-let jsonIndex = 0;
-const clock = new THREE.Clock();
-const stepTime = 0.1;
-
-// Fetching json data
-fetch("./doa_xyz_frames.jsonl")
-  .then(res => res.text())
-  .then(text => {
-    DOAData = text
-      .split("\n")
-      .map(l => l.trim())
-      .filter(l => l.length > 0)
-      .map(l => JSON.parse(l));
-
-    console.log("Loaded frames:", DOAData.length, DOAData[0]);
-  })
-  .catch(err => console.error("JSONL load error:", err));
-
-// Linear interpolation for smoothing
-function lerp( a, b, t ) {
-  return a + ( b - a ) * t;
-}
-
-function linInt( a, b, t ) {
-  return {
-    x: lerp( a.x, b.x, t ),
-    y: lerp( a.y, b.y, t ),
-    z: lerp( a.z, b.z, t ),
-    confidence: lerp( a.confidence, b.confidence, t ),
-  };
-}
+let str;
 
 // Looping animation & updating views
 function animate() {
   requestAnimationFrame(animate);
 
-if ( DOAData.length > 0 ) {
-    const elapsed = clock.getElapsedTime();
-    const frame = elapsed / stepTime;
-    const indexA = Math.floor( frame ) % DOAData.length;
-    const indexB = ( indexA + 1 ) % DOAData.length;
+if ( doaState.data.length > 0 ) {
+    const elapsed = doaState.clock.getElapsedTime();
+    const frame = elapsed / doaState.stepTime;
+    const indexA = Math.floor( frame ) % doaState.data.length;
+    const indexB = ( indexA + 1 ) % doaState.data.length;
     const t = frame % 1;
 
-    const a = DOAData[ indexA ];
-    const b= DOAData[ indexB ];
+    const a = doaState.data[ indexA ];
+    const b= doaState.data[ indexB ];
     const p = linInt( a, b, t );
 
-    direction.set( p.x, p.y, p.z ).normalize();
+    doaState.direction.set( p.x, p.y, p.z ).normalize();
     str = p.confidence;
 
-    spikeTowards(direction, str * 1.8);
+    spikeTowards(doaState.direction, str * 1.8);
 
   }
   explodeFaces( explode );
 
-  controler.update();
+  controls.update();
   renderer.render( scene, camera );
 }
 
