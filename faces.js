@@ -20,16 +20,14 @@ const material = new THREE.MeshPhongMaterial({
 const icosahedron = new THREE.Mesh(geometry, material);
 scene.add(icosahedron);
 
-const edgeGeom = new THREE.EdgesGeometry(geometry, 20);
-const lineMaterial = new THREE.LineBasicMaterial({
-  color: 0x76f3f7,
+// Creating wireframe for cool effect
+const lineMaterial = new THREE.MeshPhongMaterial({
+  color: edgeColor,
   wireframe: true,
-  opacity: 0.5,
+  opacity: 0.6,
   transparent: true,
-  depthWrite: false,
-  depthTest: true,
 });
-const edgeLines = new THREE.LineSegments(edgeGeom, lineMaterial);
+const edgeLines = new THREE.Mesh(geometry, lineMaterial);
 icosahedron.add(edgeLines);
 
 const directionController = createDirectionController();
