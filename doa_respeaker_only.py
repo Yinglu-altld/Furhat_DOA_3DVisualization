@@ -88,7 +88,7 @@ def build_parser():
     p.add_argument("--srp-el-step-deg", type=float, default=5.0)
     p.add_argument("--srp-interp", type=int, default=4)
     p.add_argument("--srp-f-low-hz", type=float, default=300.0)
-    p.add_argument("--srp-f-high-hz", type=float, default=3400.0)
+    p.add_argument("--srp-f-high-hz", type=float, default=3000.0)
     p.add_argument("--target-distance-m", type=float, default=1.2)
     p.add_argument("--smooth-alpha", type=float, default=0.30)
     p.add_argument("--lock-alpha", type=float, default=0.30)
@@ -106,6 +106,11 @@ def build_parser():
     p.add_argument("--update-hz", type=float, default=10.0)
     p.add_argument("--always-estimate", action="store_true", help="debug mode: bypass energy/SNR gating")
     p.add_argument("--idle-log-hz", type=float, default=1.0, help="idle diagnostics rate in Hz")
+    p.add_argument(
+        "--disable-jump-reject",
+        action="store_true",
+        help="disable large-jump rejection (useful if tracking gets stuck between positions)",
+    )
     p.add_argument(
         "--xyz-jsonl",
         default=None,
@@ -131,6 +136,12 @@ def build_parser():
         "--flip-y-output",
         action="store_true",
         help="flip output Y and elevation sign for UI/body-frame convention",
+    )
+    p.add_argument(
+        "--top-cap-cos-threshold",
+        type=float,
+        default=0.20,
+        help="when cos(|elevation|) is below this, attenuate x/z since azimuth is weak near top-cap",
     )
     return p
 
@@ -198,6 +209,8 @@ def main():
                 "gate_mode": args.gate_mode,
                 "always_estimate": bool(args.always_estimate),
                 "flip_y_output": bool(args.flip_y_output),
+                "top_cap_cos_threshold": float(args.top_cap_cos_threshold),
+                "disable_jump_reject": bool(args.disable_jump_reject),
             }
         ),
         flush=True,
@@ -239,6 +252,7 @@ def main():
                     locked_el = None
                     sm_az = None
                     sm_el = None
+                    last_conf = 0.0
                     speech_count = 0
                     update_count = 0
                 if hold == 0:
@@ -278,15 +292,15 @@ def main():
                 update_active = update_count >= max(1, int(args.min_update_frames))
 
                 if update_active:
-                    out = srp.estimate(mics)
+                    out = srp.estimate(mics, return_meta=True)
                     if out is not None:
-                        doa_az, doa_el, conf = out
+                        doa_az, doa_el, conf, _meta = out
                         quality_ok = (conf >= args.doa_quality_threshold) or bool(args.always_estimate)
                         if quality_ok:
                             az = wrap(float(doa_az))
                             el = float(doa_el)
                             # Reject implausibly large direction jumps unless the SRP peak is strong.
-                            if locked_az is not None and locked_el is not None:
+                            if (not args.disable_jump_reject) and locked_az is not None and locked_el is not None:
                                 az_jump = abs(cdelta(locked_az, az))
                                 el_jump = abs(el - float(locked_el))
                                 if (az_jump > 30.0 or el_jump > 20.0) and float(conf) < 0.25:
@@ -313,7 +327,13 @@ def main():
 
                 az_r = math.radians(float(sm_az))
                 el_r = math.radians(float(sm_el))
+                cos_el = abs(math.cos(el_r))
                 horiz = float(args.target_distance_m) * math.cos(el_r)
+                top_cap = cos_el < float(args.top_cap_cos_threshold)
+                if top_cap:
+                    # Planar arrays are weak in azimuth near overhead.
+                    atten = cos_el / max(float(args.top_cap_cos_threshold), 1e-6)
+                    horiz *= max(0.0, min(1.0, atten))
                 # Output in Y-up world frame:
                 # X,Z are planar and Y is elevation.
                 x = float(horiz * math.sin(az_r))
@@ -330,6 +350,7 @@ def main():
                             "x": x,
                             "y": y_out,
                             "z": z,
+                            "confidence": float(last_conf),
                         }
                     else:
                         xyz_rec = {
@@ -341,7 +362,9 @@ def main():
                             "z": z,
                             "azimuth_deg": float(sm_az),
                             "elevation_deg": float(el_out),
+                            "confidence": float(last_conf),
                             "energy": float(energy),
+                            "top_cap": bool(top_cap),
                         }
                     xyz_log_fp.write(json.dumps(xyz_rec) + "\n")
                     xyz_log_fp.flush()
@@ -365,6 +388,7 @@ def main():
                     "update_gate_energy": float(update_gate_e),
                     "speech_active": bool(speech_active),
                     "update_active": bool(update_active),
+                    "top_cap": bool(top_cap),
                 }
                 if args.axis_check:
                     planar_axis, elevation_axis = axis_labels(x, y_out, z, float(args.axis_deadband_m))

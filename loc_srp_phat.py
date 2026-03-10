@@ -1,6 +1,5 @@
-
 import math
-from typing import List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
@@ -55,6 +54,14 @@ def _confidence_from_scores(scores: np.ndarray, best_idx: int) -> float:
     return 0.45 * sharpness + 0.35 * contrast + 0.20 * ratio_term
 
 
+def _parabolic_offset_1d(v_m1: float, v_0: float, v_p1: float) -> float:
+    denom = (v_m1 - 2.0 * v_0 + v_p1)
+    if abs(denom) < 1e-12:
+        return 0.0
+    off = 0.5 * (v_m1 - v_p1) / denom
+    return float(np.clip(off, -1.0, 1.0))
+
+
 class SRPPhatDOA3D:
     """3D far-field SRP-PHAT DOA estimator.
 
@@ -76,7 +83,7 @@ class SRPPhatDOA3D:
         el_step_deg: float = 4.0,
         interp: int = 4,
         f_low_hz: Optional[float] = 300.0,
-        f_high_hz: Optional[float] = 3400.0,
+        f_high_hz: Optional[float] = 3000.0,
     ):
         self.fs = fs
         self.interp = interp
@@ -85,9 +92,18 @@ class SRPPhatDOA3D:
         self.mic_xyz = np.asarray(mic_xyz_m, dtype=np.float64)
 
         az_grid = np.arange(az_min_deg, az_max_deg + 0.5 * az_step_deg, az_step_deg, dtype=np.float64)
+        if az_grid.size >= 2 and abs(float(az_grid[-1] - az_grid[0]) - 360.0) <= 0.5 * abs(float(az_step_deg)):
+            # Drop duplicated seam direction (e.g. both -180 and +180).
+            az_grid = az_grid[:-1]
         el_grid = np.arange(el_min_deg, el_max_deg + 0.5 * el_step_deg, el_step_deg, dtype=np.float64)
         az_rad = np.deg2rad(az_grid)
         el_rad = np.deg2rad(el_grid)
+        self.az_grid = az_grid
+        self.el_grid = el_grid
+        self.n_az = int(az_grid.size)
+        self.n_el = int(el_grid.size)
+        self.az_step_deg = float(az_step_deg)
+        self.el_step_deg = float(el_step_deg)
 
         dirs = []
         az_list = []
@@ -104,21 +120,40 @@ class SRPPhatDOA3D:
         self.azimuths_deg = np.asarray(az_list, dtype=np.float64)
         self.elevations_deg = np.asarray(el_list, dtype=np.float64)
 
-        self.pairs: List[Tuple[int, int, np.ndarray, float]] = []
+        raw_pairs: List[Tuple[int, int, np.ndarray, float]] = []
         n_mics = self.mic_xyz.shape[0]
         for i in range(n_mics):
             for j in range(i + 1, n_mics):
                 delta = self.mic_xyz[i] - self.mic_xyz[j]
                 dist = float(np.linalg.norm(delta))
                 if dist > 1e-6:
-                    self.pairs.append((i, j, delta.astype(np.float64), dist))
+                    raw_pairs.append((i, j, delta.astype(np.float64), dist))
+        if raw_pairs:
+            dists = np.asarray([p[3] for p in raw_pairs], dtype=np.float64)
+            weights = dists / (float(np.sum(dists)) + 1e-12)
+            self.pairs = [
+                (i, j, delta, dist, float(w))
+                for (i, j, delta, dist), w in zip(raw_pairs, weights)
+            ]
+        else:
+            self.pairs = []
 
-    def estimate(self, mics: np.ndarray) -> Optional[Tuple[float, float, float]]:
+    def estimate(
+        self,
+        mics: np.ndarray,
+        return_meta: bool = False,
+    ) -> Optional[Union[Tuple[float, float, float], Tuple[float, float, float, Dict[str, Any]]]]:
         if mics.ndim != 2 or mics.shape[1] < 2 or not self.pairs:
             return None
 
+        # Frame conditioning helps GCC-PHAT robustness.
+        mics = mics.astype(np.float64, copy=False)
+        mics = mics - np.mean(mics, axis=0, keepdims=True)
+        if mics.shape[0] > 4:
+            mics = mics * np.hanning(mics.shape[0])[:, None]
+
         scores = np.zeros(self.dir_xyz.shape[0], dtype=np.float64)
-        for i, j, delta, dist in self.pairs:
+        for i, j, delta, dist, weight in self.pairs:
             lags, cc_abs = _gcc_phat_curve(
                 mics[:, i],
                 mics[:, j],
@@ -130,10 +165,52 @@ class SRPPhatDOA3D:
             )
             tau_pred = (self.dir_xyz @ delta) / C_SOUND
             pair_score = np.interp(tau_pred, lags, cc_abs, left=0.0, right=0.0)
-            scores += pair_score
+            pair_peak = float(np.max(pair_score))
+            if pair_peak > 1e-12:
+                pair_score = pair_score / pair_peak
+            scores += float(weight) * pair_score
 
         best_idx = int(np.argmax(scores))
-        az_deg = float(self.azimuths_deg[best_idx])
-        el_deg = float(self.elevations_deg[best_idx])
-        conf = _confidence_from_scores(scores, best_idx)
-        return az_deg, el_deg, conf
+        score_grid = scores.reshape(self.n_el, self.n_az)
+        best_el_idx, best_az_idx = divmod(best_idx, self.n_az)
+
+        az_c = float(score_grid[best_el_idx, best_az_idx])
+        az_l = float(score_grid[best_el_idx, (best_az_idx - 1) % self.n_az])
+        az_r = float(score_grid[best_el_idx, (best_az_idx + 1) % self.n_az])
+        az_off = _parabolic_offset_1d(az_l, az_c, az_r)
+        az_deg = float(self.az_grid[best_az_idx] + az_off * self.az_step_deg)
+        az_deg = ((az_deg + 180.0) % 360.0) - 180.0
+
+        if 0 < best_el_idx < (self.n_el - 1):
+            el_m1 = float(score_grid[best_el_idx - 1, best_az_idx])
+            el_c = float(score_grid[best_el_idx, best_az_idx])
+            el_p1 = float(score_grid[best_el_idx + 1, best_az_idx])
+            el_off = _parabolic_offset_1d(el_m1, el_c, el_p1)
+            el_curv = max(0.0, el_c - 0.5 * (el_m1 + el_p1))
+        else:
+            el_c = float(score_grid[best_el_idx, best_az_idx])
+            el_off = 0.0
+            el_curv = 0.0
+        el_deg = float(self.el_grid[best_el_idx] + el_off * self.el_step_deg)
+        el_deg = float(np.clip(el_deg, self.el_grid[0], self.el_grid[-1]))
+
+        az_curv = max(0.0, az_c - 0.5 * (az_l + az_r))
+        az_sharp = float(np.clip(3.0 * az_curv / (az_c + 1e-12), 0.0, 1.0))
+        el_sharp = float(np.clip(3.0 * el_curv / (el_c + 1e-12), 0.0, 1.0))
+
+        conf_base = _confidence_from_scores(scores, best_idx)
+        conf = float(np.clip(0.80 * conf_base + 0.15 * az_sharp + 0.05 * el_sharp, 0.0, 1.0))
+        elev_obs = max(0.0, math.cos(math.radians(abs(el_deg))))
+        elev_conf = float(np.clip(0.50 * conf_base + 0.30 * el_sharp + 0.20 * elev_obs, 0.0, 1.0))
+
+        if not return_meta:
+            return az_deg, el_deg, conf
+        meta: Dict[str, Any] = {
+            "peak_score": float(scores[best_idx]),
+            "mean_score": float(np.mean(scores)),
+            "azimuth_sharpness": az_sharp,
+            "elevation_sharpness": el_sharp,
+            "elevation_observability": elev_obs,
+            "elevation_confidence": elev_conf,
+        }
+        return az_deg, el_deg, conf, meta
