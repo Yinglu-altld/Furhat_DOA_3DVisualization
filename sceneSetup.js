@@ -38,8 +38,11 @@ export function createSceneSetup({
     scene.add(light);
     
     const backLight = new THREE.DirectionalLight(0xffffff, 2);
-    backLight.position.set(-1, -4, -2); // fixed typo
+    backLight.position.set(-1, 1, -2);
     scene.add(backLight);
+
+    const ambiLight = new THREE.AmbientLight( 0xffffff, 0.1 );
+    scene.add( ambiLight );
 
     // Adding .obj and .mtl file of respeaker (note: material must load before obj to apply)
         const objLoader = new OBJLoader();

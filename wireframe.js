@@ -23,7 +23,7 @@ const material = new THREE.MeshPhongMaterial({
   depthWrite: false,
 });
 const icosahedron = new THREE.Mesh(geometry, material);
-scene.add(icosahedron);
+scene.add( icosahedron );
 
 // Creating wireframe for cool effect
 const lineMaterial = new THREE.MeshPhongMaterial({
@@ -87,7 +87,7 @@ function animate() {
     doaState.direction.set( p.x, p.y, p.z ).normalize();
     str = p.confidence;
 
-    spikeTowards(doaState.direction, str * 1.8);
+    spikeTowards(doaState.direction, str * 2);
 
   }
 

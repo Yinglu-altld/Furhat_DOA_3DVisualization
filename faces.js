@@ -4,7 +4,8 @@ import { POWER } from "./sceneSetup.js";
 
 const {scene, camera, renderer, controls, doaState} = createSceneSetup();
 
-let meshColor = 0x00ffcc;
+let meshColor = 0x550044;
+let edgeColor = 0x00ffaa;
 
 // Creating the orb (icosahedron)
 let geometry = new THREE.IcosahedronGeometry(0.34, 3);
@@ -27,7 +28,7 @@ scene.add(icosahedron);
 
 // Creating wireframe for cool effect
 const lineMaterial = new THREE.MeshPhongMaterial({
-  color: 0x00ffaa,
+  color: edgeColor,
   wireframe: true,
   opacity: 0.6,
   transparent: true,
