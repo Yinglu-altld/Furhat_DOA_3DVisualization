@@ -20,6 +20,20 @@ python plot_doa_3d.py --jsonl doa_xyz_frames.jsonl --follow --tail 500 --refresh
 ------------------------------------------------------------------
 
 OVERALL TESTING OF WHOLE THING
+## Single run (one terminal for producer + bridge)
+```powershell
+$proj = "C:\Users\upill\getting strted\soundorb"
+Start-Process -FilePath "$proj\.venv\Scripts\python.exe" -WorkingDirectory $proj -ArgumentList @(
+  "ws_jsonl_bridge.py",
+  "--jsonl","doa_xyz_frames.jsonl",
+  "--from-end",
+  "--xyz-only",
+  "--host","0.0.0.0",
+  "--port","8765"
+)
+& "$proj\.venv\Scripts\python.exe" "$proj\doa_respeaker_only.py" --device 1 --channels 6 --mic-channels 3,4,1,2 --axis-check --xyz-jsonl "$proj\doa_xyz_frames.jsonl" --xyz-minimal --voice-sensitive
+```
+
 # Terminal A
 cd "C:\Users\upill\getting strted\soundorb"
 python doa_respeaker_only.py --device 1 --channels 6 --mic-channels 3,4,1,2 --axis-check --xyz-jsonl doa_xyz_frames.jsonl --xyz-minimal --energy-threshold 35 --energy-update-threshold 50 --snr-speech-ratio 1.1 --snr-speech-add 8 --snr-update-ratio 1.2 --snr-update-add 12 --min-speech-frames 1 --min-update-frames 1 --speech-hold-ms 120 --doa-quality-threshold 0.10 --lock-alpha 0.30 --smooth-alpha 0.25 --srp-el-step-deg 2 --srp-f-high-hz 3000 --top-cap-cos-threshold 0.20 --update-hz 10
