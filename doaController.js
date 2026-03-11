@@ -3,17 +3,17 @@ import * as THREE from "three";
 export const DOA_ACTIVE_TIMEOUT_MS = 1200;
 
 export function createDirectionController({
-  smoothFactor = 0.18,
+  directionSmoothFactor = 0.18,
+  volumeSmoothFactor = 0.2,
   staleTimeoutMs = DOA_ACTIVE_TIMEOUT_MS,
-  activityRise = 0.22,
-  activityDecay = 0.12,
 } = {}) {
   const currentDirection = new THREE.Vector3(1, 0, 0);
   const targetDirection = new THREE.Vector3(1, 0, 0);
+  let currentVolume = 0;
+  let targetVolume = 0;
 
   let hasExternalDOA = false;
   let lastDOATimeMs = 0;
-  let activity = 0;
 
   function updateFromData(data) {
     if (!data || typeof data !== "object") return false;
@@ -26,6 +26,10 @@ export function createDirectionController({
     targetDirection.set(x, y, z);
     if (targetDirection.lengthSq() < 1e-8) return false;
 
+    const rawVolume = Number(data.volume);
+    const rawStrength = Number(data.strength);
+    const signalLevel = Number.isFinite(rawVolume) ? rawVolume : rawStrength;
+    targetVolume = Number.isFinite(signalLevel) ? Math.max(0, signalLevel) : 0;
     targetDirection.normalize();
     hasExternalDOA = true;
     lastDOATimeMs = Date.now();
@@ -36,19 +40,19 @@ export function createDirectionController({
     const hasFreshDOA = hasExternalDOA && Date.now() - lastDOATimeMs < staleTimeoutMs;
 
     if (hasFreshDOA) {
-      currentDirection.lerp(targetDirection, smoothFactor);
+      currentDirection.lerp(targetDirection, directionSmoothFactor);
       if (currentDirection.lengthSq() < 1e-8) {
         currentDirection.copy(targetDirection);
       }
       currentDirection.normalize();
-      activity = THREE.MathUtils.lerp(activity, 1, activityRise);
-      return { direction: currentDirection, hasFreshDOA, hasExternalDOA, activity };
+      currentVolume = THREE.MathUtils.lerp(currentVolume, targetVolume, volumeSmoothFactor);
+      return { direction: currentDirection, hasFreshDOA, hasExternalDOA, volume: currentVolume };
     }
 
-    activity = THREE.MathUtils.lerp(activity, 0, activityDecay);
-    if (activity < 1e-4) activity = 0;
+    currentVolume = THREE.MathUtils.lerp(currentVolume, 0, volumeSmoothFactor);
+    if (currentVolume < 1e-4) currentVolume = 0;
 
-    return { direction: currentDirection, hasFreshDOA, hasExternalDOA, activity };
+    return { direction: currentDirection, hasFreshDOA, hasExternalDOA, volume: currentVolume };
   }
 
   return { updateFromData, getDirectionStep };

@@ -14,7 +14,6 @@ const styleControlsRowEl = document.getElementById("style-controls-row");
 const facesControlsEl = document.getElementById("controls-faces");
 const wireControlsEl = document.getElementById("controls-wireframe");
 const arrowControlsEl = document.getElementById("controls-arrow");
-const furhatControlsEl = document.getElementById("controls-furhat");
 
 const facesFillColorEl = document.getElementById("faces-fill-color");
 const facesFillOpacityEl = document.getElementById("faces-fill-opacity");
@@ -39,13 +38,6 @@ const arrowLengthScaleEl = document.getElementById("arrow-length-scale");
 const arrowLengthScaleValueEl = document.getElementById("arrow-length-scale-value");
 const arrowResetEl = document.getElementById("arrow-reset-style");
 
-const furhatAccentColorEl = document.getElementById("furhat-accent-color");
-const furhatTurnGainEl = document.getElementById("furhat-turn-gain");
-const furhatTurnGainValueEl = document.getElementById("furhat-turn-gain-value");
-const furhatBobAmountEl = document.getElementById("furhat-bob-amount");
-const furhatBobAmountValueEl = document.getElementById("furhat-bob-amount-value");
-const furhatResetEl = document.getElementById("furhat-reset-style");
-
 const DEFAULT_STYLE = {
   faces: {
     fillColor: "#cfa1f3",
@@ -63,11 +55,6 @@ const DEFAULT_STYLE = {
   arrow: {
     arrowColor: "#4de7c8",
     lengthScale: 1,
-  },
-  furhat: {
-    accentColor: "#22d6ff",
-    turnGain: 1,
-    bobAmount: 0.16,
   },
 };
 
@@ -119,14 +106,6 @@ function clampLengthScale(value) {
   return Math.max(0.5, Math.min(2.5, value));
 }
 
-function clampTurnGain(value) {
-  return Math.max(0.2, Math.min(2.5, value));
-}
-
-function clampBobAmount(value) {
-  return Math.max(0, Math.min(0.4, value));
-}
-
 function normalizeColor(value, fallback) {
   if (typeof value !== "string") return fallback;
   const hex = value.startsWith("#") ? value.slice(1) : value;
@@ -163,15 +142,14 @@ function setModeButtonsActive(mode) {
 }
 
 function setControlPanelsVisible(mode) {
-  if (!facesControlsEl || !wireControlsEl || !arrowControlsEl || !furhatControlsEl) return;
+  if (!facesControlsEl || !wireControlsEl || !arrowControlsEl) return;
 
   facesControlsEl.classList.toggle("hidden", mode !== "faces");
   wireControlsEl.classList.toggle("hidden", mode !== "wireframe");
   arrowControlsEl.classList.toggle("hidden", mode !== "arrow");
-  furhatControlsEl.classList.toggle("hidden", mode !== "furhat");
 
   if (styleControlsRowEl) {
-    const hasModeControls = mode === "faces" || mode === "wireframe" || mode === "arrow" || mode === "furhat";
+    const hasModeControls = mode === "faces" || mode === "wireframe" || mode === "arrow";
     styleControlsRowEl.classList.toggle("hidden", !hasModeControls);
   }
 }
@@ -211,14 +189,6 @@ function readStyleFromControls() {
     };
   }
 
-  if (ORB_MODE === "furhat") {
-    return {
-      accentColor: normalizeColor(furhatAccentColorEl.value, DEFAULT_STYLE.furhat.accentColor),
-      turnGain: clampTurnGain(Number(furhatTurnGainEl.value)),
-      bobAmount: clampBobAmount(Number(furhatBobAmountEl.value)),
-    };
-  }
-
   return {};
 }
 
@@ -255,17 +225,6 @@ function writeStyleToControls(rawStyle = {}) {
     arrowLengthScaleEl.value = String(clampLengthScale(Number(s.lengthScale)));
 
     arrowLengthScaleValueEl.textContent = format2(arrowLengthScaleEl.value);
-    return;
-  }
-
-  if (ORB_MODE === "furhat") {
-    const s = { ...DEFAULT_STYLE.furhat, ...rawStyle };
-    furhatAccentColorEl.value = normalizeColor(s.accentColor, DEFAULT_STYLE.furhat.accentColor);
-    furhatTurnGainEl.value = String(clampTurnGain(Number(s.turnGain)));
-    furhatBobAmountEl.value = String(clampBobAmount(Number(s.bobAmount)));
-
-    furhatTurnGainValueEl.textContent = format2(furhatTurnGainEl.value);
-    furhatBobAmountValueEl.textContent = format2(furhatBobAmountEl.value);
   }
 }
 
@@ -354,22 +313,6 @@ function initializeStyleControls() {
     });
 
     writeStyleToControls(DEFAULT_STYLE.arrow);
-  } else if (ORB_MODE === "furhat") {
-    const onInput = () => {
-      writeStyleToControls(readStyleFromControls());
-      applyOrbStyleFromControls();
-    };
-
-    furhatAccentColorEl.addEventListener("input", onInput);
-    furhatTurnGainEl.addEventListener("input", onInput);
-    furhatBobAmountEl.addEventListener("input", onInput);
-
-    furhatResetEl.addEventListener("click", () => {
-      writeStyleToControls(DEFAULT_STYLE.furhat);
-      applyOrbStyleFromControls();
-    });
-
-    writeStyleToControls(DEFAULT_STYLE.furhat);
   } else {
     return;
   }
@@ -396,6 +339,21 @@ function extractDirection(data) {
   return { x, y, z };
 }
 
+function extractVolume(data) {
+  if (!data || typeof data !== "object") return null;
+  const volume = Number(data.volume);
+  if (Number.isFinite(volume)) {
+    return volume;
+  }
+
+  const strength = Number(data.strength);
+  if (Number.isFinite(strength)) {
+    return strength;
+  }
+
+  return null;
+}
+
 function handleMessage(raw) {
   let parsed;
   try {
@@ -411,8 +369,13 @@ function handleMessage(raw) {
     return;
   }
 
-  const data = { dir };
-  latestEl.textContent = JSON.stringify(data, null, 2);
+  const volume = extractVolume(parsed);
+  const data = volume === null ? { dir } : { dir, volume };
+  latestEl.textContent = JSON.stringify(
+    volume === null ? dir : { x: dir.x, y: dir.y, z: dir.z, volume },
+    null,
+    2
+  );
 
   if (window.orb && typeof window.orb.update === "function") {
     orbMissingWarned = false;

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { createSceneSetup, POWER } from "./sceneSetup.js";
 import { createDirectionController } from "./doaController.js";
 
-const { scene, camera, renderer, controls } = createSceneSetup();
+const { scene, camera, renderer, controls } = createSceneSetup({ cameraZ: 1.18 });
 const meshColor = 0xcfa1f3;
 const edgeColor = 0x76f3f7;
 
@@ -36,7 +36,7 @@ const directionController = createDirectionController();
 
 const v = new THREE.Vector3();
 const n = new THREE.Vector3();
-const ACTIVE_STRENGTH = 0.12;
+const VOLUME_SCALE = 0.001;
 
 function spikeTowards(dir, strength) {
   const pos = geometry.attributes.position;
@@ -159,9 +159,10 @@ window.dispatchEvent(new Event("orb-ready"));
 function animate() {
   requestAnimationFrame(animate);
 
-  const { direction, activity } = directionController.getDirectionStep();
-  spikeTowards(direction, ACTIVE_STRENGTH * 1.8 * activity);
-  explodeFaces(explode * activity);
+  const { direction, volume } = directionController.getDirectionStep();
+  const scaledVolume = volume * VOLUME_SCALE;
+  spikeTowards(direction, scaledVolume);
+  explodeFaces(explode);
 
   controls.update();
   renderer.render(scene, camera);

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { createSceneSetup } from "./sceneSetup.js";
 import { createDirectionController } from "./doaController.js";
 
-const { scene, camera, renderer, controls } = createSceneSetup();
+const { scene, camera, renderer, controls } = createSceneSetup({ cameraZ: 1.5 });
 
 const arrowColor = 0x4de7c8;
 const material = new THREE.MeshPhongMaterial({ color: arrowColor });
@@ -28,8 +28,8 @@ const directionController = createDirectionController();
 const up = new THREE.Vector3(0, 1, 0);
 const q = new THREE.Quaternion();
 
-const ACTIVE_LENGTH = 2.4;
-const IDLE_LENGTH_BASE = 1.7;
+const IDLE_LENGTH_BASE = 1;
+const VOLUME_SCALE = 0.001;
 
 let lengthScale = 1;
 
@@ -81,8 +81,8 @@ window.dispatchEvent(new Event("orb-ready"));
 function animate() {
   requestAnimationFrame(animate);
 
-  const { direction, activity } = directionController.getDirectionStep();
-  const length = THREE.MathUtils.lerp(IDLE_LENGTH_BASE, ACTIVE_LENGTH, activity) * lengthScale;
+  const { direction, volume } = directionController.getDirectionStep();
+  const length = (IDLE_LENGTH_BASE + volume * VOLUME_SCALE) * lengthScale;
 
   arrow.scale.set(1, length, 1);
   q.setFromUnitVectors(up, direction);
