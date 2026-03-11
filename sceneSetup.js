@@ -98,6 +98,6 @@ export function linInt( a, b, t ) {
     x: lerp( a.x, b.x, t ),
     y: lerp( a.y, b.y, t ),
     z: lerp( a.z, b.z, t ),
-    confidence: lerp( a.confidence, b.confidence, t ),
+    volume: lerp( a.volume, b.volume, t ),
   };
 }

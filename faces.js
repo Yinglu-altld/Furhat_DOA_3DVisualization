@@ -117,9 +117,9 @@ if ( doaState.data.length > 0 ) {
     const p = linInt( a, b, t );
 
     doaState.direction.set( p.x, p.y, p.z ).normalize();
-    str = p.confidence;
+    str = p.volume;
 
-    spikeTowards(doaState.direction, str * 1.8);
+    spikeTowards(doaState.direction, str / 1000);
 
   }
   explodeFaces( explode );

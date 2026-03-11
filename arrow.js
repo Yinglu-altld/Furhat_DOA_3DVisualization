@@ -49,10 +49,10 @@ function animate() {
     const p = linInt( a, b, t );
 
     doaState.direction.set( p.x, p.y, p.z ).normalize();
-    str = p.confidence;
+    str = p.volume;
   }
 
-  arrow.scale.set( 1, str * 15, 1 );
+  arrow.scale.set( 1, str / 1000 + 1, 1 );
   q.setFromUnitVectors( up, doaState.direction );
   arrow.quaternion.copy( q );
   arrow.position.set( 0, 0, 0 );

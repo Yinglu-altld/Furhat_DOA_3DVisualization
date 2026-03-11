@@ -39,12 +39,12 @@ function animate() {
     const p = linInt( a, b, t );
 
     doaState.direction.set( p.x, p.y, p.z ).normalize();
-    str = p.confidence;
+    str = p.volume;
   }
 
   controls.update();
   renderer.render( scene, camera );
-  furhat.position.y = str * 2 - 0.1;
+  furhat.position.y = str / 1000 - 0.1;
   const yaw = Math.atan2( doaState.direction.x, doaState.direction.y );
   furhat.rotation.y = yaw;
 }

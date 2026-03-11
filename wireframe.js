@@ -85,9 +85,9 @@ function animate() {
     const p = linInt( a, b, t );
 
     doaState.direction.set( p.x, p.y, p.z ).normalize();
-    str = p.confidence;
+    str = p.volume;
 
-    spikeTowards(doaState.direction, str * 2);
+    spikeTowards(doaState.direction, str / 1000);
 
   }
 
