@@ -82,6 +82,11 @@ def build_parser():
         help="how to combine per-mic energies for gating",
     )
     p.add_argument("--frame-ms", type=int, default=100)
+    p.add_argument(
+        "--voice-sensitive",
+        action="store_true",
+        help="apply lower gating and faster tracking defaults for quicker speech response",
+    )
     p.add_argument("--srp-az-step-deg", type=float, default=2.0)
     p.add_argument("--srp-el-min-deg", type=float, default=0.0)
     p.add_argument("--srp-el-max-deg", type=float, default=70.0)
@@ -119,7 +124,7 @@ def build_parser():
     p.add_argument(
         "--xyz-minimal",
         action="store_true",
-        help="when set, write only x/y/z/confidence fields to --xyz-jsonl",
+        help="when set, write only x/y/z/volume fields to --xyz-jsonl",
     )
     p.add_argument(
         "--axis-check",
@@ -143,11 +148,46 @@ def build_parser():
         default=0.20,
         help="when cos(|elevation|) is below this, attenuate x/z since azimuth is weak near top-cap",
     )
+    p.add_argument(
+        "--y-reliable-el-deg",
+        type=float,
+        default=60.0,
+        help="elevation (deg) where Y is fully reliable for coplanar array geometry",
+    )
+    p.add_argument(
+        "--y-min-reliability",
+        type=float,
+        default=0.20,
+        help="minimum Y reliability at or above --srp-el-max-deg (0..1)",
+    )
     return p
 
 
 def main():
     args = build_parser().parse_args()
+
+    if args.voice_sensitive:
+        # Only replace parameters still on script defaults so explicit CLI values keep priority.
+        voice_sensitive_overrides = {
+            "frame_ms": (100, 80),
+            "smooth_alpha": (0.30, 0.35),
+            "lock_alpha": (0.30, 0.45),
+            "doa_quality_threshold": (0.15, 0.08),
+            "energy_threshold": (80.0, 20.0),
+            "energy_update_threshold": (120.0, 45.0),
+            "snr_speech_ratio": (1.4, 1.05),
+            "snr_speech_add": (20.0, 4.0),
+            "snr_update_ratio": (1.7, 1.10),
+            "snr_update_add": (30.0, 6.0),
+            "min_speech_frames": (2, 1),
+            "speech_hold_ms": (160, 80),
+            "update_hz": (10.0, 12.0),
+        }
+        for key, (default_v, tuned_v) in voice_sensitive_overrides.items():
+            if getattr(args, key) == default_v:
+                setattr(args, key, tuned_v)
+        if args.disable_jump_reject is False:
+            args.disable_jump_reject = True
 
     if args.list_devices:
         print(sd.query_devices())
@@ -207,9 +247,12 @@ def main():
                 "channels": int(args.channels),
                 "mic_channels": idx,
                 "gate_mode": args.gate_mode,
+                "voice_sensitive": bool(args.voice_sensitive),
                 "always_estimate": bool(args.always_estimate),
                 "flip_y_output": bool(args.flip_y_output),
                 "top_cap_cos_threshold": float(args.top_cap_cos_threshold),
+                "y_reliable_el_deg": float(args.y_reliable_el_deg),
+                "y_min_reliability": float(args.y_min_reliability),
                 "disable_jump_reject": bool(args.disable_jump_reject),
             }
         ),
@@ -325,6 +368,16 @@ def main():
                 if sm_az is None or sm_el is None:
                     continue
 
+                abs_el = abs(float(sm_el))
+                y_rel_pivot = max(0.0, float(args.y_reliable_el_deg))
+                y_rel_floor = float(np.clip(float(args.y_min_reliability), 0.0, 1.0))
+                if abs_el <= y_rel_pivot:
+                    y_reliability = 1.0
+                else:
+                    span = max(1e-6, float(args.srp_el_max_deg) - y_rel_pivot)
+                    t = max(0.0, min(1.0, (abs_el - y_rel_pivot) / span))
+                    y_reliability = (1.0 - t) + t * y_rel_floor
+
                 az_r = math.radians(float(sm_az))
                 el_r = math.radians(float(sm_el))
                 cos_el = abs(math.cos(el_r))
@@ -338,6 +391,7 @@ def main():
                 # X,Z are planar and Y is elevation.
                 x = float(horiz * math.sin(az_r))
                 y = float(float(args.target_distance_m) * math.sin(el_r))
+                y *= float(y_reliability)
                 z = float(horiz * math.cos(az_r))
                 y_out = -y if args.flip_y_output else y
                 el_out = -float(sm_el) if args.flip_y_output else float(sm_el)
@@ -350,7 +404,7 @@ def main():
                             "x": x,
                             "y": y_out,
                             "z": z,
-                            "confidence": float(last_conf),
+                            "volume": float(energy),
                         }
                     else:
                         xyz_rec = {
@@ -389,6 +443,7 @@ def main():
                     "speech_active": bool(speech_active),
                     "update_active": bool(update_active),
                     "top_cap": bool(top_cap),
+                    "y_reliability": float(y_reliability),
                 }
                 if args.axis_check:
                     planar_axis, elevation_axis = axis_labels(x, y_out, z, float(args.axis_deadband_m))

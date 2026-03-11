@@ -34,7 +34,7 @@ def build_parser():
     p.add_argument(
         "--xyz-only",
         action="store_true",
-        help="Forward only x/y/z/confidence keys in outbound messages",
+        help="Forward only x/y/z/volume keys in outbound messages",
     )
     return p
 
@@ -103,7 +103,7 @@ async def run_bridge(args):
                         "x": rec.get("x"),
                         "y": rec.get("y"),
                         "z": rec.get("z"),
-                        "confidence": rec.get("confidence"),
+                        "volume": rec.get("volume", rec.get("energy")),
                     }
 
                 await broadcast(rec)
