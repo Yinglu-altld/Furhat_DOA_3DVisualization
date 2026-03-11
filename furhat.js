@@ -112,6 +112,7 @@ function animate() {
   requestAnimationFrame(animate);
 
   const { direction, hasFreshDOA, hasExternalDOA } = directionController.getDirectionStep();
+  const time = performance.now() * 0.001;
 
   if (hasFreshDOA) {
     markerQuat.setFromUnitVectors(up, direction);
@@ -120,6 +121,7 @@ function animate() {
     if (furhat) {
       const yaw = Math.atan2(direction.x, direction.z);
       furhat.rotation.y = yaw * turnGain;
+      furhat.position.y = -0.1 + bobAmount * (0.5 + 0.5 * Math.sin(time * 1.3));
     }
   } else if (!hasExternalDOA) {
     marker.quaternion.identity();
@@ -128,10 +130,6 @@ function animate() {
       furhat.rotation.y = 0;
       furhat.position.y = -0.1;
     }
-  }
-
-  if (furhat && hasFreshDOA) {
-    furhat.position.y = -0.1 + bobAmount;
   }
 
   controls.update();
