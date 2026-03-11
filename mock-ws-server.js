@@ -4,6 +4,8 @@ const { URL } = require("url");
 
 const PORT = 9000;
 const INTERVAL_MS = 500;
+const ACTIVE_WINDOW_MS = 4000;
+const SILENT_WINDOW_MS = 3000;
 
 const clients = new Set();
 
@@ -114,4 +116,12 @@ server.listen(PORT, () => {
   console.log(`Mock DOA WebSocket server running at ws://localhost:${PORT}`);
 });
 
-setInterval(() => broadcast(buildPayload()), INTERVAL_MS);
+setInterval(() => {
+  const cycleMs = ACTIVE_WINDOW_MS + SILENT_WINDOW_MS;
+  const cyclePosition = Date.now() % cycleMs;
+  const isActive = cyclePosition < ACTIVE_WINDOW_MS;
+
+  if (isActive) {
+    broadcast(buildPayload());
+  }
+}, INTERVAL_MS);

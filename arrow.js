@@ -81,15 +81,12 @@ window.dispatchEvent(new Event("orb-ready"));
 function animate() {
   requestAnimationFrame(animate);
 
-  const { direction, hasFreshDOA, hasExternalDOA } = directionController.getDirectionStep();
+  const { direction, activity } = directionController.getDirectionStep();
+  const length = THREE.MathUtils.lerp(IDLE_LENGTH_BASE, ACTIVE_LENGTH, activity) * lengthScale;
 
-  if (hasFreshDOA) {
-    arrow.scale.set(1, ACTIVE_LENGTH * lengthScale, 1);
-    q.setFromUnitVectors(up, direction);
-    arrow.quaternion.copy(q);
-  } else if (!hasExternalDOA) {
-    arrow.scale.set(1, IDLE_LENGTH_BASE * lengthScale, 1);
-  }
+  arrow.scale.set(1, length, 1);
+  q.setFromUnitVectors(up, direction);
+  arrow.quaternion.copy(q);
 
   controls.update();
   renderer.render(scene, camera);

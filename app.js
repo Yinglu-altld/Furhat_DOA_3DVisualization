@@ -1,4 +1,4 @@
-const WS_URL = "ws://192.168.1.217:8765";
+const DEFAULT_WS_URL = "ws://192.168.1.217:8765";
 
 const statusEl = document.getElementById("status");
 const endpointEl = document.getElementById("endpoint");
@@ -19,6 +19,9 @@ const furhatControlsEl = document.getElementById("controls-furhat");
 const facesFillColorEl = document.getElementById("faces-fill-color");
 const facesFillOpacityEl = document.getElementById("faces-fill-opacity");
 const facesFillOpacityValueEl = document.getElementById("faces-fill-opacity-value");
+const facesWireColorEl = document.getElementById("faces-wire-color");
+const facesWireOpacityEl = document.getElementById("faces-wire-opacity");
+const facesWireOpacityValueEl = document.getElementById("faces-wire-opacity-value");
 const facesExplodeEl = document.getElementById("faces-explode");
 const facesExplodeValueEl = document.getElementById("faces-explode-value");
 const facesResetEl = document.getElementById("faces-reset-style");
@@ -45,8 +48,10 @@ const furhatResetEl = document.getElementById("furhat-reset-style");
 
 const DEFAULT_STYLE = {
   faces: {
-    fillColor: "#0000ff",
+    fillColor: "#cfa1f3",
     fillOpacity: 0.3,
+    wireColor: "#76f3f7",
+    wireOpacity: 0.6,
     explodeAmount: 0.1,
   },
   wireframe: {
@@ -82,7 +87,24 @@ function getOrbMode() {
   return "faces";
 }
 
+function getWebSocketUrl() {
+  const fromUrl = new URLSearchParams(window.location.search).get("ws");
+  if (!fromUrl) return DEFAULT_WS_URL;
+
+  try {
+    const parsed = new URL(fromUrl);
+    if (parsed.protocol === "ws:" || parsed.protocol === "wss:") {
+      return parsed.toString();
+    }
+  } catch (_) {
+    console.warn("Invalid ws query parameter, falling back to default WebSocket URL.");
+  }
+
+  return DEFAULT_WS_URL;
+}
+
 const ORB_MODE = getOrbMode();
+const WS_URL = getWebSocketUrl();
 let orbMissingWarned = false;
 
 function clamp01(value) {
@@ -167,6 +189,8 @@ function readStyleFromControls() {
     return {
       fillColor: normalizeColor(facesFillColorEl.value, DEFAULT_STYLE.faces.fillColor),
       fillOpacity: clamp01(Number(facesFillOpacityEl.value)),
+      wireColor: normalizeColor(facesWireColorEl.value, DEFAULT_STYLE.faces.wireColor),
+      wireOpacity: clamp01(Number(facesWireOpacityEl.value)),
       explodeAmount: clampExplode(Number(facesExplodeEl.value)),
     };
   }
@@ -203,9 +227,12 @@ function writeStyleToControls(rawStyle = {}) {
     const s = { ...DEFAULT_STYLE.faces, ...rawStyle };
     facesFillColorEl.value = normalizeColor(s.fillColor, DEFAULT_STYLE.faces.fillColor);
     facesFillOpacityEl.value = String(clamp01(Number(s.fillOpacity)));
+    facesWireColorEl.value = normalizeColor(s.wireColor, DEFAULT_STYLE.faces.wireColor);
+    facesWireOpacityEl.value = String(clamp01(Number(s.wireOpacity)));
     facesExplodeEl.value = String(clampExplode(Number(s.explodeAmount)));
 
     facesFillOpacityValueEl.textContent = format2(facesFillOpacityEl.value);
+    facesWireOpacityValueEl.textContent = format2(facesWireOpacityEl.value);
     facesExplodeValueEl.textContent = format2(facesExplodeEl.value);
     return;
   }
@@ -285,6 +312,8 @@ function initializeStyleControls() {
 
     facesFillColorEl.addEventListener("input", onInput);
     facesFillOpacityEl.addEventListener("input", onInput);
+    facesWireColorEl.addEventListener("input", onInput);
+    facesWireOpacityEl.addEventListener("input", onInput);
     facesExplodeEl.addEventListener("input", onInput);
 
     facesResetEl.addEventListener("click", () => {

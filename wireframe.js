@@ -33,18 +33,6 @@ const v = new THREE.Vector3();
 const n = new THREE.Vector3();
 const ACTIVE_STRENGTH = 0.22;
 
-function resetToBaseShape() {
-  const pos = geometry.attributes.position;
-
-  for (let i = 0; i < pos.count; i++) {
-    const ix = i * 3;
-    pos.setXYZ(i, basePositions[ix], basePositions[ix + 1], basePositions[ix + 2]);
-  }
-
-  pos.needsUpdate = true;
-  geometry.computeVertexNormals();
-}
-
 function spikeTowards(dir, strength) {
   const pos = geometry.attributes.position;
 
@@ -129,13 +117,8 @@ window.dispatchEvent(new Event("orb-ready"));
 function animate() {
   requestAnimationFrame(animate);
 
-  const { direction, hasFreshDOA } = directionController.getDirectionStep();
-
-  if (hasFreshDOA) {
-    spikeTowards(direction, ACTIVE_STRENGTH * 1.8);
-  } else {
-    resetToBaseShape();
-  }
+  const { direction, activity } = directionController.getDirectionStep();
+  spikeTowards(direction, ACTIVE_STRENGTH * 1.8 * activity);
 
   controls.update();
   renderer.render(scene, camera);

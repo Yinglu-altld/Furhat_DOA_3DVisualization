@@ -111,20 +111,22 @@ window.dispatchEvent(new Event("orb-ready"));
 function animate() {
   requestAnimationFrame(animate);
 
-  const { direction, hasFreshDOA, hasExternalDOA } = directionController.getDirectionStep();
+  const { direction, hasFreshDOA, hasExternalDOA, activity } = directionController.getDirectionStep();
   const time = performance.now() * 0.001;
 
-  if (hasFreshDOA) {
+  if (hasFreshDOA || activity > 0) {
     markerQuat.setFromUnitVectors(up, direction);
     marker.quaternion.slerp(markerQuat, 0.2);
+    marker.scale.setScalar(0.55 + 0.45 * activity);
 
     if (furhat) {
       const yaw = Math.atan2(direction.x, direction.z);
       furhat.rotation.y = yaw * turnGain;
-      furhat.position.y = -0.1 + bobAmount * (0.5 + 0.5 * Math.sin(time * 1.3));
+      furhat.position.y = -0.1 + bobAmount * activity * (0.5 + 0.5 * Math.sin(time * 1.3));
     }
   } else if (!hasExternalDOA) {
     marker.quaternion.identity();
+    marker.scale.setScalar(0.55);
 
     if (furhat) {
       furhat.rotation.y = 0;

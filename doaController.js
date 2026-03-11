@@ -5,12 +5,15 @@ export const DOA_ACTIVE_TIMEOUT_MS = 1200;
 export function createDirectionController({
   smoothFactor = 0.18,
   staleTimeoutMs = DOA_ACTIVE_TIMEOUT_MS,
+  activityRise = 0.22,
+  activityDecay = 0.12,
 } = {}) {
   const currentDirection = new THREE.Vector3(1, 0, 0);
   const targetDirection = new THREE.Vector3(1, 0, 0);
 
   let hasExternalDOA = false;
   let lastDOATimeMs = 0;
+  let activity = 0;
 
   function updateFromData(data) {
     if (!data || typeof data !== "object") return false;
@@ -38,10 +41,14 @@ export function createDirectionController({
         currentDirection.copy(targetDirection);
       }
       currentDirection.normalize();
-      return { direction: currentDirection, hasFreshDOA, hasExternalDOA };
+      activity = THREE.MathUtils.lerp(activity, 1, activityRise);
+      return { direction: currentDirection, hasFreshDOA, hasExternalDOA, activity };
     }
 
-    return { direction: currentDirection, hasFreshDOA, hasExternalDOA };
+    activity = THREE.MathUtils.lerp(activity, 0, activityDecay);
+    if (activity < 1e-4) activity = 0;
+
+    return { direction: currentDirection, hasFreshDOA, hasExternalDOA, activity };
   }
 
   return { updateFromData, getDirectionStep };

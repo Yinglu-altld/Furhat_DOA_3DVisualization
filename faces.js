@@ -3,6 +3,8 @@ import { createSceneSetup, POWER } from "./sceneSetup.js";
 import { createDirectionController } from "./doaController.js";
 
 const { scene, camera, renderer, controls } = createSceneSetup();
+const meshColor = 0xcfa1f3;
+const edgeColor = 0x76f3f7;
 
 let geometry = new THREE.IcosahedronGeometry(0.34, 3);
 geometry = geometry.toNonIndexed();
@@ -11,7 +13,7 @@ const posAttr = geometry.attributes.position;
 const basePositions = posAttr.array.slice();
 
 const material = new THREE.MeshPhongMaterial({
-  color: "blue",
+  color: meshColor,
   opacity: 0.3,
   transparent: true,
   side: THREE.DoubleSide,
@@ -35,18 +37,6 @@ const directionController = createDirectionController();
 const v = new THREE.Vector3();
 const n = new THREE.Vector3();
 const ACTIVE_STRENGTH = 0.12;
-
-function resetToBaseShape() {
-  const pos = geometry.attributes.position;
-
-  for (let i = 0; i < pos.count; i++) {
-    const ix = i * 3;
-    pos.setXYZ(i, basePositions[ix], basePositions[ix + 1], basePositions[ix + 2]);
-  }
-
-  pos.needsUpdate = true;
-  geometry.computeVertexNormals();
-}
 
 function spikeTowards(dir, strength) {
   const pos = geometry.attributes.position;
@@ -117,6 +107,8 @@ function getOrbStyle() {
   return {
     fillColor: `#${material.color.getHexString()}`,
     fillOpacity: Number(material.opacity.toFixed(2)),
+    wireColor: `#${lineMaterial.color.getHexString()}`,
+    wireOpacity: Number(lineMaterial.opacity.toFixed(2)),
     explodeAmount: Number(explode.toFixed(2)),
   };
 }
@@ -133,6 +125,17 @@ function setOrbStyle(style = {}) {
     const fillOpacity = clamp01(style.fillOpacity);
     material.opacity = fillOpacity;
     material.transparent = fillOpacity < 1;
+  }
+
+  if ("wireColor" in style) {
+    const wireColor = normalizeHexColor(style.wireColor, current.wireColor);
+    lineMaterial.color.set(wireColor);
+  }
+
+  if ("wireOpacity" in style && Number.isFinite(style.wireOpacity)) {
+    const wireOpacity = clamp01(style.wireOpacity);
+    lineMaterial.opacity = wireOpacity;
+    lineMaterial.transparent = wireOpacity < 1;
   }
 
   if ("explodeAmount" in style && Number.isFinite(style.explodeAmount)) {
@@ -156,14 +159,9 @@ window.dispatchEvent(new Event("orb-ready"));
 function animate() {
   requestAnimationFrame(animate);
 
-  const { direction, hasFreshDOA } = directionController.getDirectionStep();
-
-  if (hasFreshDOA) {
-    spikeTowards(direction, ACTIVE_STRENGTH * 1.8);
-    explodeFaces(explode);
-  } else {
-    resetToBaseShape();
-  }
+  const { direction, activity } = directionController.getDirectionStep();
+  spikeTowards(direction, ACTIVE_STRENGTH * 1.8 * activity);
+  explodeFaces(explode * activity);
 
   controls.update();
   renderer.render(scene, camera);
