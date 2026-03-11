@@ -22,6 +22,8 @@ export function createSceneSetup({
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(initialWidth, initialHeight);
+  renderer.domElement.style.position = "absolute";
+  renderer.domElement.style.display = "block";
   mount.appendChild(renderer.domElement);
 
   const controls = new OrbitControls(camera, renderer.domElement);
@@ -62,10 +64,18 @@ export function createSceneSetup({
     const bounds = mount.getBoundingClientRect();
     const width = Math.max(1, bounds.width || window.innerWidth);
     const height = Math.max(1, bounds.height || window.innerHeight);
-    camera.aspect = width / height;
+    const size = Math.max(1, Math.min(width, height));
+
+    camera.aspect = 1;
     camera.updateProjectionMatrix();
-    renderer.setSize(width, height, false);
+    renderer.setSize(size, size, false);
+    renderer.domElement.style.width = `${size}px`;
+    renderer.domElement.style.height = `${size}px`;
+    renderer.domElement.style.left = `${(width - size) * 0.5}px`;
+    renderer.domElement.style.top = `${(height - size) * 0.5}px`;
   };
+
+  resizeRendererToStage();
 
   window.addEventListener("resize", resizeRendererToStage);
   if (typeof ResizeObserver !== "undefined") {
