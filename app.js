@@ -331,10 +331,9 @@ function initializeStyleControls() {
 
 function extractDirection(data) {
   if (!data || typeof data !== "object") return null;
-  const source = data.dir && typeof data.dir === "object" ? data.dir : data;
-  const x = Number(source.x);
-  const y = Number(source.y);
-  const z = Number(source.z);
+  const x = Number(data.x);
+  const y = Number(data.y);
+  const z = Number(data.z);
   if (![x, y, z].every((v) => Number.isFinite(v))) return null;
   return { x, y, z };
 }
@@ -370,7 +369,7 @@ function handleMessage(raw) {
   }
 
   const volume = extractVolume(parsed);
-  const data = volume === null ? { dir } : { dir, volume };
+  const data = volume === null ? dir : { x: dir.x, y: dir.y, z: dir.z, volume };
   latestEl.textContent = JSON.stringify(
     volume === null ? dir : { x: dir.x, y: dir.y, z: dir.z, volume },
     null,

@@ -20,20 +20,7 @@ The webpage listens for DOA data from a WebSocket server and updates a 3D visual
 
 The frontend accepts DOA messages containing direction and optional volume. Direction is normalized before rendering, while volume is used as the response magnitude for the visual effect.
 
-Accepted payload shapes:
-
-```json
-{
-  "dir": {
-    "x": 0.82,
-    "y": 0.05,
-    "z": 0.56
-  },
-  "volume": 180.4
-}
-```
-
-or
+Accepted payload shape:
 
 ```json
 {

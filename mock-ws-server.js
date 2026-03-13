@@ -22,8 +22,12 @@ function randomUnitVector() {
 }
 
 function buildPayload() {
+  const dir = randomUnitVector();
   return {
-    dir: randomUnitVector(),
+    x: dir.x,
+    y: dir.y,
+    z: dir.z,
+    volume: +(80 + Math.random() * 240).toFixed(2),
   };
 }
 

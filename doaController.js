@@ -17,10 +17,9 @@ export function createDirectionController({
 
   function updateFromData(data) {
     if (!data || typeof data !== "object") return false;
-    const source = data.dir && typeof data.dir === "object" ? data.dir : data;
-    const x = Number(source.x);
-    const y = Number(source.y);
-    const z = Number(source.z);
+    const x = Number(data.x);
+    const y = Number(data.y);
+    const z = Number(data.z);
     if (![x, y, z].every((num) => Number.isFinite(num))) return false;
 
     targetDirection.set(x, y, z);
