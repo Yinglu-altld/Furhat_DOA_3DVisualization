@@ -6,12 +6,17 @@ import time
 import numpy as np
 import sounddevice as sd
 
+from respeaker_config import ARRAY_PRESETS, pick_respeaker_device, resolve_preset_args
 
-def pick_respeaker_device(min_channels):
-    for i, d in enumerate(sd.query_devices()):
-        if "ReSpeaker" in d["name"] and int(d["max_input_channels"]) >= min_channels:
-            return i
-    return None
+
+def _normalize_host_samples(block, sample_dtype):
+    x = block.astype(np.float64, copy=False)
+    dt = str(sample_dtype)
+    if dt == "int16":
+        return x * (1.0 / 32768.0)
+    if dt == "int32":
+        return x * (1.0 / 2147483648.0)
+    return x
 
 
 def build_parser():
@@ -19,9 +24,21 @@ def build_parser():
         description="ReSpeaker channel calibration helper: tap near each physical mic and inspect channel spikes."
     )
     p.add_argument("--list-devices", action="store_true")
+    p.add_argument(
+        "--array-preset",
+        default="legacy-square-28",
+        choices=sorted(ARRAY_PRESETS.keys()),
+        help="sets default --channels and --dtype when omitted",
+    )
     p.add_argument("--fs", type=int, default=16000)
-    p.add_argument("--channels", type=int, default=6)
+    p.add_argument("--channels", type=int, default=None, help="host capture channel count; default from --array-preset")
     p.add_argument("--device", type=int, default=None, help="sounddevice input device index")
+    p.add_argument(
+        "--dtype",
+        choices=("int16", "int32", "float32"),
+        default=None,
+        help="host capture format; default from --array-preset",
+    )
     p.add_argument("--frame-ms", type=int, default=64)
     p.add_argument("--calib-hz", type=float, default=5.0, help="telemetry rate in Hz while idle")
     p.add_argument("--calib-noise-alpha", type=float, default=0.98, help="EMA factor for per-channel noise floor")
@@ -36,6 +53,13 @@ def main():
     if args.list_devices:
         print(sd.query_devices())
         return
+
+    args.channels, _, args.dtype = resolve_preset_args(
+        args.array_preset,
+        args.channels,
+        None,
+        args.dtype,
+    )
 
     device = args.device
     if device is None:
@@ -57,6 +81,8 @@ def main():
                 "device_name": sd.query_devices(device)["name"],
                 "fs": int(args.fs),
                 "channels": int(args.channels),
+                "dtype": str(args.dtype),
+                "array_preset": str(args.array_preset),
                 "hint": "Tap one physical mic at a time. Use best_channel/top_channels to map physical mic -> stream channel.",
             }
         ),
@@ -71,13 +97,13 @@ def main():
         device=device,
         samplerate=args.fs,
         channels=args.channels,
-        dtype="int16",
+        dtype=args.dtype,
         blocksize=int(args.fs * args.frame_ms / 1000),
         callback=cb,
     ):
         while True:
             frame = q.get()
-            per_ch_energy = np.mean(np.abs(frame.astype(np.float32)), axis=0)
+            per_ch_energy = np.mean(np.abs(_normalize_host_samples(frame, args.dtype)), axis=0)
             if noise is None:
                 noise = per_ch_energy.copy()
 

@@ -34,7 +34,7 @@ def build_parser():
     p.add_argument(
         "--xyz-only",
         action="store_true",
-        help="Forward only x/y/z/volume keys in outbound messages",
+        help="Forward compact x/y/z plus direction/projection keys in outbound messages",
     )
     return p
 
@@ -99,12 +99,20 @@ async def run_bridge(args):
                     continue
 
                 if args.xyz_only:
+                    led_ring = rec.get("led_ring")
                     rec = {
                         "x": rec.get("x"),
                         "y": rec.get("y"),
                         "z": rec.get("z"),
+                        "dir_x": rec.get("dir_x"),
+                        "dir_y": rec.get("dir_y"),
+                        "dir_z": rec.get("dir_z"),
+                        "projection_mode": rec.get("projection_mode"),
+                        "projection_valid": rec.get("projection_valid"),
                         "volume": rec.get("volume", rec.get("energy")),
                     }
+                    if led_ring is not None:
+                        rec["led_ring"] = led_ring
 
                 await broadcast(rec)
 
